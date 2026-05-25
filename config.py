@@ -45,6 +45,10 @@ def parse_arguments() -> argparse.Namespace:
         "--resume", action="store_true",
         help="skip already-processed questions instead of starting fresh"
     )
+    parser.add_argument(
+        "--judge_model_id", default="meta-llama/Llama-3.3-70B-Instruct",
+        help="model used by analyze_result.py to judge answer equivalence for open-ended datasets"
+    )
 
     return parser.parse_args()
 

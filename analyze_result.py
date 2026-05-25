@@ -2,25 +2,19 @@
 """Evaluate self-probing UQ: label samples and compute AUROC + F1 for all 5 variants."""
 
 import json
-import logging
 import os
-import time
 from typing import Optional
 
 import torch
 from tqdm import tqdm
 
 from config import args
+from src.model.api_client import chat_complete
 from utils import print_exp
 from torchmetrics import AUROC, F1Score
 
-from openai import OpenAI, APIError
-
-SYSTEM_PROMPT_ORACLE_EQUIVALENCY = (
-    "You are an automated grading assistant helping a teacher grade student answers."
-)
-
 PROMPT_ANSWER_KEY_EQUIVALENCY = (
+    "You are an automated grading assistant helping a teacher grade student answers.\n\n"
     "The problem is: <question>\n\n The correct answer for this problem is: <ground-truth>\n "
     + "A student submitted the answer: <prediction>\n "
     + "The student's answer must be correct and specific but not overcomplete "
@@ -36,26 +30,6 @@ def _model_output_path() -> str:
     """Infer per-model output path from model_id and dataset."""
     model_name = args.model_id.split("/")[-1]
     return f"output/{model_name}/{args.dataset}"
-
-
-def openai_query(system_prompt, prompt, openai_model_name="gpt-4o-mini"):
-    """Query OpenAI with retry on API errors."""
-    client = OpenAI()
-    sampled_response = None
-    while sampled_response is None:
-        try:
-            response = client.chat.completions.create(
-                model=openai_model_name,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": prompt},
-                ],
-            )
-            sampled_response = response.choices[0].message.content
-        except APIError:
-            logging.exception("OpenAI API Error.", exc_info=True)
-            time.sleep(1)
-    return sampled_response
 
 
 def label_samples(output_path):
@@ -81,8 +55,11 @@ def label_samples(output_path):
                     .replace("<prediction>", llm_answer)
                     .replace("<question>", question)
                 )
-                sampled_response = openai_query(SYSTEM_PROMPT_ORACLE_EQUIVALENCY, prompt)
-                label = "yes" in sampled_response.strip().lower()
+                response = chat_complete(
+                    prompt, args.judge_model_id, "featherless",
+                    temperature=0.0, max_new_tokens=8, top_p=1.0,
+                )
+                label = "yes" in response.strip().lower()
 
             f.write(json.dumps({
                 "id": line["id"],
