@@ -75,16 +75,26 @@ def load_data(args):
     else:
         raise ValueError('not support dataset: {}'.format(args.dataset))
 
+    # Return dataset slice. For datasets that include a `type` field
+    # (hotpotQA and 2WikimhQA) always return four values so callers
+    # that expect `(questions, answers, ids, types)` won't fail when
+    # `--test_end` is provided.
+    start = int(args.test_start)
     if args.test_end == 'full':
-        if args.dataset.lower() in ['hotpotqa', '2wikimhqa']:
-            return questions[int(args.test_start):], answers[int(args.test_start):], ids[int(args.test_start):], types[int(args.test_start):]
-        else:
-            return questions[int(args.test_start):], answers[int(args.test_start):], ids[int(args.test_start):]
+        end = None
     else:
-        return questions[int(args.test_start):int(args.test_end)], answers[
-                                                                   int(args.test_start):int(args.test_end)], ids[
-                                                                                                             int(args.test_start):int(
-                                                                                                                 args.test_end)]
+        end = int(args.test_end)
+
+    if args.dataset.lower() in ['hotpotqa', '2wikimhqa']:
+        if end is None:
+            return questions[start:], answers[start:], ids[start:], types[start:]
+        else:
+            return questions[start:end], answers[start:end], ids[start:end], types[start:end]
+    else:
+        if end is None:
+            return questions[start:], answers[start:], ids[start:]
+        else:
+            return questions[start:end], answers[start:end], ids[start:end]
 
 def write_json(data, path):
     f = open(path, mode='a', encoding='utf-8')
@@ -462,9 +472,18 @@ def weighted_sum(values):
     return result 
 
 def extract_probing_confidence(response):
+    # "X%" anywhere in the response
     match = re.search(r"(\d+(\.\d+)?)%", response)
     if match:
-        return float(match.group(1)) / 100  
+        return float(match.group(1)) / 100
+
+    # "Confidence: X" or "```Confidence: X```" anywhere (case-insensitive)
+    match = re.search(r"confidence[:\s]*`*\s*(\d+(\.\d+)?)`*", response, re.IGNORECASE)
+    if match:
+        confidence = float(match.group(1))
+        if confidence > 1:
+            confidence /= 100
+        return confidence
 
     first_line = response.strip().split("\n")[0]
 
@@ -474,7 +493,7 @@ def extract_probing_confidence(response):
             confidence /= 100
         return confidence
     except ValueError:
-        pass  
+        pass
 
     match = re.search(r"(\d+(\.\d+)?)", first_line)
     if match:
@@ -483,5 +502,5 @@ def extract_probing_confidence(response):
             confidence /= 100
         return confidence
 
-    return None  
+    return None
 

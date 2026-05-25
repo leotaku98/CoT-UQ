@@ -92,7 +92,7 @@ def _probe_question(task: tuple) -> dict | None:
         confidence = extract_probing_confidence(response)
 
         if confidence is None:
-            print(f"  [{variant}] Cannot extract confidence (try {try_time + 1}): {response[:80]}")
+            print(f"  [{variant}] Cannot extract confidence (try {try_time + 1}): {response}")
             continue
 
         return {

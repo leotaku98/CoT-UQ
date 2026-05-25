@@ -23,7 +23,8 @@
       "Bash(git -C /data/haowhuan/PycharmProjects/CoT-UQ commit -m \"Update CLAUDE.md: add cotuq venv, reflect API-based pipeline\")",
       "Skill(update-config)",
       "Skill(update-config:*)",
-      "Bash(tmux ls *)"
+      "Bash(tmux ls *)",
+      "Bash(git -C /data/haowhuan/PycharmProjects/CoT-UQ log --oneline -10)"
     ]
   }
 }
