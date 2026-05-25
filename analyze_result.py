@@ -1,12 +1,12 @@
 import json
-import torch
-import time
 import logging
+import time
+import torch
 from tqdm import tqdm
 
 from config import args
 from utils import print_exp
-from torchmetrics import AUROC
+from torchmetrics import AUROC, F1Score
 
 from openai import OpenAI, APIError
 
@@ -61,7 +61,6 @@ def label_samples():
             if args.dataset in ["gsm8k", "svamp", "ASDiv"]:
                 label = (str(correct_answer) in llm_answer.lower()) or (str(int(correct_answer)) in llm_answer.lower())
             else:
-                t = line['type']
                 prompt = (
                     PROMPT_ANSWER_KEY_EQUIVALENCY.replace("<ground-truth>", str(correct_answer))
                     .replace("<prediction>", llm_answer)
@@ -77,14 +76,11 @@ def label_samples():
             formatted_data = {
                 "id": id,
                 "question": question,
-                # "type": t,
                 "correct answer": correct_answer,
                 "llm answer": llm_answer,
                 "label": label,
                 "llm response": line['llm response'],
-                "llm answer token probability": line['llm answer token probability'], 
                 "step-wise keywords": line['step-wise keywords'],
-                "keyword token probability": line['keyword token probability'],
                 "keyword contribution": line['keyword contribution'],
             }
             f.write(json.dumps(formatted_data, ensure_ascii=False) + "\n")
@@ -115,15 +111,32 @@ def compute_auroc():
         all_confidences.append(line['confidence'])
         all_auroc_target.append(label_dict[question])
 
-    # calculate AUROC
-    auroc = AUROC(task="binary")
-    auroc_value = auroc(torch.tensor(all_confidences), torch.tensor(all_auroc_target))
+    confidences = torch.tensor(all_confidences)
+    targets = torch.tensor(all_auroc_target)
 
-    print(f"AUROC: {auroc_value}")
+    auroc = AUROC(task="binary")
+    auroc_value = auroc(confidences, targets)
+
+    f1 = F1Score(task="binary")
+    f1_value = f1(confidences, targets)
+
+    print(f"  AUROC : {auroc_value:.4f}")
+    print(f"  F1    : {f1_value:.4f}")
+
+
+VARIANTS = ["baseline", "allkeyword", "keykeyword", "allstep", "keystep"]
 
 
 if __name__ == '__main__':
-    print_exp(args) 
+    print_exp(args)
 
     label_samples()
-    compute_auroc()
+
+    print(f"\n=== Results for {args.output_path} ===")
+    for variant in VARIANTS:
+        args.uq_engine = f"self-probing-{variant}"
+        print(f"\n[{variant}]")
+        try:
+            compute_auroc()
+        except FileNotFoundError:
+            print("  (no output file found, skipping)")
