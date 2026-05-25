@@ -3,8 +3,27 @@
     "allow": [
       "Bash(git add *)",
       "Bash(git commit *)",
-      "Bash(git *)",
-      "Bash(pip install *)"
+      "Read(//home/haowhuan/.claude/plugins/cache/claude-plugins-official/superpowers/5.1.0/skills/subagent-driven-development/**)",
+      "Read(//home/haowhuan/.claude/plugins/cache/claude-plugins-official/superpowers/5.1.0/skills/requesting-code-review/**)",
+      "Bash(git -C /data/haowhuan/PycharmProjects/CoT-UQ log --oneline -3)",
+      "Bash(pip install *)",
+      "Bash(python -m pip install openai python-dotenv pyyaml)",
+      "Read(//home/haowhuan/.conda/**)",
+      "Read(//home/haowhuan/**)",
+      "Bash(conda info *)",
+      "Bash(git -C /data/haowhuan/PycharmProjects/CoT-UQ add requirement.txt)",
+      "Bash(git -C /data/haowhuan/PycharmProjects/CoT-UQ commit -m \"Pin minimum versions for python-dotenv and pyyaml\")",
+      "Bash(PYTHONPATH=. pytest tests/test_api_client.py -v)",
+      "Bash(python -m pytest tests/test_api_client.py -v)",
+      "Bash(ls /data/haowhuan/PycharmProjects/CoT-UQ/ && find /data/haowhuan -name \"python3*\" -type f 2>/dev/null | head -10)",
+      "Read(//data/haowhuan/**)",
+      "Bash(git -C /data/haowhuan/PycharmProjects/CoT-UQ add README.md)",
+      "Bash(git -C /data/haowhuan/PycharmProjects/CoT-UQ commit -m \"Rewrite README for API-based self-probing pipeline\")",
+      "Bash(git -C /data/haowhuan/PycharmProjects/CoT-UQ add CLAUDE.md)",
+      "Bash(git -C /data/haowhuan/PycharmProjects/CoT-UQ commit -m \"Update CLAUDE.md: add cotuq venv, reflect API-based pipeline\")",
+      "Skill(update-config)",
+      "Skill(update-config:*)",
+      "Bash(tmux ls *)"
     ]
   }
 }
