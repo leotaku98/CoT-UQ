@@ -1,54 +1,48 @@
+# -*- coding: utf-8 -*-
+"""Shared argument parser for all pipeline entry points."""
+
 import argparse
 
 
-def parse_arguments():
+def parse_arguments() -> argparse.Namespace:
+    """Parse CLI arguments shared across inference_refining, stepuq, and analyze_result."""
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
-        "--max_length_cot", type=int, default=256,
-        help="maximum length of output tokens by model for reasoning extraction"
+        "--max_new_tokens", type=int, default=256,
+        help="maximum number of new tokens to generate per call"
     )
     parser.add_argument(
         "--try_times", type=int, default=20,
-        help="try times for meaningful reasoning process"
+        help="retry limit per question for a valid model response"
+    )
+    parser.add_argument("--temperature", type=float, default=1.0)
+    parser.add_argument("--top_p", type=float, default=0.9)
+    parser.add_argument(
+        "--dataset", default="gsm8k",
+        choices=["ASDiv", "2WikimhQA", "gsm8k", "hotpotQA", "svamp"]
+    )
+    parser.add_argument("--datapath", default=None, type=str, help="override default dataset path")
+    parser.add_argument(
+        "--model_id", default="Qwen/Qwen2.5-7B-Instruct",
+        help="HuggingFace model identifier passed to the API"
     )
     parser.add_argument(
-        "--temperature", type=float, default=1.0, help=""
+        "--provider", default="featherless", choices=["featherless", "openai"],
+        help="API provider"
     )
     parser.add_argument(
-        '--dataset', default='NLI',
-        help="dataset",
-        choices=["ASDiv", "2WikimhQA", "gsm8k", "hotpotQA", "logiQA", "AddSub", "SingleEq", "CommonsenseQA", "StrategyQA", "CAD", "TriviaQA", "Math", "NLI", "svamp"]
+        "--uq_engine", default="self-probing-baseline",
+        help="used by analyze_result.py to locate confidences/output_v1_<uq_engine>.json"
     )
     parser.add_argument(
-        "--datapath", default=None, type=str, help='file path'
+        "--output_path", default="output/",
+        help="directory for all output files"
     )
-    parser.add_argument(
-        "--api_key", default="", type = str, help='gpt api_key'
-    )
-    parser.add_argument(
-        "--model_engine", default='llama2-7b', help="model engine",
-        choices=["llama3-1_8B", "llama2-13b"]
-    )
-    parser.add_argument(
-        "--uq_engine", default='probas-mean', help="uncertainty quantification engine",
-        choices=["probas-mean", "probas-min", "token-sar", "p-true", "self-probing"]
-    )
-    parser.add_argument(
-        "--model_path", default='llama3-1_8B', help="your local model path",
-        choices=["llama3-1_8B", "llama2-13b"]
-    )
-    parser.add_argument(
-        "--output_path", default='output/llama-3.1-8B/', help="your local output path"
-    )
-    parser.add_argument(
-        "--test_start", default='0', help='string, number'
-    )
-    parser.add_argument(
-        "--test_end", default='full', help='string, number'
-    )
-    parsed_args = parser.parse_args()
-    return parsed_args
+    parser.add_argument("--test_start", default="0", help="start index for dataset slice")
+    parser.add_argument("--test_end", default="full", help="end index or 'full'")
+
+    return parser.parse_args()
 
 
 args = parse_arguments()
