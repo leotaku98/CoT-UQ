@@ -82,8 +82,7 @@ output/
     <dataset>/
       output_v1.json                         # CoT responses + keyword contributions
       error_questions/output_v1.json         # questions that exceeded retry limit
-      timing_inference.json                  # runtime stats for inference_refining.py
-      timing_stepuq.json                     # runtime stats for stepuq.py (per variant)
+      timing.json                            # runtime stats for both stages
       confidences/
         output_v1_self-probing-baseline.json
         output_v1_self-probing-allkeyword.json

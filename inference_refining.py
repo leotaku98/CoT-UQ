@@ -159,21 +159,22 @@ def api_inference_refining() -> None:
                     f.write(json.dumps(result["data"], ensure_ascii=False) + "\n")
 
     elapsed = time.time() - start_time
-    timing = {
-        "stage": "inference_refining",
+    elapsed_human = f"{int(elapsed // 3600)}h {int(elapsed % 3600 // 60)}m {int(elapsed % 60)}s"
+    timing_path = f"{args.output_path}/timing.json"
+    timing = json.load(open(timing_path)) if os.path.exists(timing_path) else {}
+    timing["inference"] = {
         "model": args.model_id,
         "dataset": args.dataset,
         "started_at": datetime.utcfromtimestamp(start_time).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "elapsed_seconds": round(elapsed, 1),
-        "elapsed_human": f"{int(elapsed // 3600)}h {int(elapsed % 3600 // 60)}m {int(elapsed % 60)}s",
+        "elapsed_human": elapsed_human,
         "questions_processed": len(tasks),
         "success": success_count,
         "error": error_count,
     }
-    timing_path = f"{args.output_path}/timing_inference.json"
     with open(timing_path, "w", encoding="utf-8") as f:
         json.dump(timing, f, indent=2)
-    print(f"Done in {timing['elapsed_human']} — timing saved to {timing_path}")
+    print(f"Done in {elapsed_human} — timing saved to {timing_path}")
 
 
 if __name__ == "__main__":

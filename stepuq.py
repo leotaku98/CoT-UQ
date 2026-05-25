@@ -175,19 +175,20 @@ def self_probing_uncertainty() -> None:
         }
 
     total_elapsed = time.time() - start_time
-    timing = {
-        "stage": "stepuq",
+    elapsed_human = f"{int(total_elapsed // 3600)}h {int(total_elapsed % 3600 // 60)}m {int(total_elapsed % 60)}s"
+    timing_path = f"{args.output_path}/timing.json"
+    timing = json.load(open(timing_path)) if os.path.exists(timing_path) else {}
+    timing["stepuq"] = {
         "model": args.model_id,
         "dataset": args.dataset,
         "started_at": datetime.utcfromtimestamp(start_time).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "elapsed_seconds": round(total_elapsed, 1),
-        "elapsed_human": f"{int(total_elapsed // 3600)}h {int(total_elapsed % 3600 // 60)}m {int(total_elapsed % 60)}s",
+        "elapsed_human": elapsed_human,
         "variants": variant_timings,
     }
-    timing_path = f"{args.output_path}/timing_stepuq.json"
     with open(timing_path, "w", encoding="utf-8") as f:
         json.dump(timing, f, indent=2)
-    print(f"\nDone in {timing['elapsed_human']} — timing saved to {timing_path}")
+    print(f"\nDone in {elapsed_human} — timing saved to {timing_path}")
 
 
 if __name__ == "__main__":
