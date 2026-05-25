@@ -5,7 +5,7 @@
 export PYTHONPATH=./
 
 DATASET=$1
-TRY_TIMES_INF=5
+TRY_TIMES_INF=20
 TRY_TIMES_UQ=5
 
 if [ -z "$DATASET" ]; then
