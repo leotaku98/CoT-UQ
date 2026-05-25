@@ -3,6 +3,7 @@
 
 import json
 import os
+from concurrent.futures import ThreadPoolExecutor
 from tqdm import tqdm
 
 from config import args
@@ -65,6 +66,45 @@ def build_self_probing_prompt(
     return base + context + suffix
 
 
+def _probe_question(task: tuple) -> dict | None:
+    """Run self-probing for one question under one variant.
+
+    Returns a result dict on success, or None if all retries are exhausted.
+    """
+    line, variant, gen_kwargs, model_id, provider, try_times = task
+
+    question = line["question"]
+    llm_answer = line.get("llm answer", "")
+    llm_response = line.get("llm response", "")
+    keyword_contribution = line.get("keyword contribution", {})
+
+    if not llm_answer or not keyword_contribution:
+        return None
+
+    prompt = build_self_probing_prompt(
+        question, llm_answer, variant, keyword_contribution, llm_response
+    )
+
+    for try_time in range(try_times):
+        response = chat_complete(prompt, model_id, provider, **gen_kwargs)
+        confidence = extract_probing_confidence(response)
+
+        if confidence is None:
+            print(f"  [{variant}] Cannot extract confidence (try {try_time + 1}): {response[:80]}")
+            continue
+
+        return {
+            "question": question,
+            "correct answer": line["correct answer"],
+            "llm answer": llm_answer,
+            "confidence": confidence,
+            "probing response": response,
+        }
+
+    print(f"  [{variant}] Skipping after {try_times} failed tries")
+    return None
+
+
 def self_probing_uncertainty() -> None:
     """Run self-probing for all 5 variants over output_v1.json."""
     with open(f"{args.output_path}/output_v1.json", "r", encoding="utf-8") as f:
@@ -83,43 +123,16 @@ def self_probing_uncertainty() -> None:
         out_path = f"{output_dir}output_v1_self-probing-{variant}.json"
         print(f"\n=== Variant: {variant} → {out_path} ===")
 
+        tasks = [
+            (line, variant, gen_kwargs, args.model_id, args.provider, args.try_times)
+            for line in json_data
+        ]
+
         with open(out_path, "a", encoding="utf-8") as f_out:
-            for line in tqdm(json_data, desc=variant):
-                question = line["question"]
-                llm_answer = line.get("llm answer", "")
-                llm_response = line.get("llm response", "")
-                keyword_contribution = line.get("keyword contribution", {})
-
-                if not llm_answer or not keyword_contribution:
-                    continue
-
-                prompt = build_self_probing_prompt(
-                    question, llm_answer, variant, keyword_contribution, llm_response
-                )
-
-                try_time = 0
-                while try_time < args.try_times:
-                    response = chat_complete(
-                        prompt, args.model_id, args.provider, **gen_kwargs
-                    )
-                    confidence = extract_probing_confidence(response)
-
-                    if confidence is None:
-                        print(f"  Cannot extract confidence (try {try_time + 1}): {response[:80]}")
-                        try_time += 1
-                        continue
-
-                    f_out.write(json.dumps({
-                        "question": question,
-                        "correct answer": line["correct answer"],
-                        "llm answer": llm_answer,
-                        "confidence": confidence,
-                        "probing response": response,
-                    }, ensure_ascii=False) + "\n")
-                    break
-
-                if try_time >= args.try_times:
-                    print(f"  Skipping after {args.try_times} failed tries")
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                for result in tqdm(executor.map(_probe_question, tasks), total=len(tasks), desc=variant):
+                    if result is not None:
+                        f_out.write(json.dumps(result, ensure_ascii=False) + "\n")
 
 
 if __name__ == "__main__":
