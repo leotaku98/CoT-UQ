@@ -3,7 +3,9 @@
 
 import json
 import os
+import time
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 from tqdm import tqdm
 
 from config import args
@@ -138,17 +140,40 @@ def api_inference_refining() -> None:
             for idx, q in enumerate(question)
         ]
 
+    start_time = time.time()
+    success_count = 0
+    error_count = 0
+
     with ThreadPoolExecutor(max_workers=2) as executor:
         for result in tqdm(executor.map(_process_question, tasks), total=len(tasks)):
             if result["type"] == "success":
+                success_count += 1
                 with open(f"{result['output_path']}/output_v1.json", "a", encoding="utf-8") as f:
                     f.write(json.dumps(result["data"], ensure_ascii=False) + "\n")
             else:
+                error_count += 1
                 error_dir = f"{result['output_path']}/error_questions"
                 os.makedirs(error_dir, exist_ok=True)
                 log.debug(f"Question exceeded retry limit: {result['data']['question'][:60]}")
                 with open(f"{error_dir}/output_v1.json", "a", encoding="utf-8") as f:
                     f.write(json.dumps(result["data"], ensure_ascii=False) + "\n")
+
+    elapsed = time.time() - start_time
+    timing = {
+        "stage": "inference_refining",
+        "model": args.model_id,
+        "dataset": args.dataset,
+        "started_at": datetime.utcfromtimestamp(start_time).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "elapsed_seconds": round(elapsed, 1),
+        "elapsed_human": f"{int(elapsed // 3600)}h {int(elapsed % 3600 // 60)}m {int(elapsed % 60)}s",
+        "questions_processed": len(tasks),
+        "success": success_count,
+        "error": error_count,
+    }
+    timing_path = f"{args.output_path}/timing_inference.json"
+    with open(timing_path, "w", encoding="utf-8") as f:
+        json.dump(timing, f, indent=2)
+    print(f"Done in {timing['elapsed_human']} — timing saved to {timing_path}")
 
 
 if __name__ == "__main__":

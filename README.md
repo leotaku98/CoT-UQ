@@ -41,7 +41,11 @@ Supported providers: `featherless`, `openai`.
 ## Running the Pipeline
 
 ```bash
+# Fresh run (clears existing output and starts over)
 sh run_api_pipeline.sh <dataset>
+
+# Resume (skips already-processed questions, continues from where it left off)
+sh run_api_pipeline.sh <dataset> --resume
 ```
 
 Supported datasets: `hotpotQA`, `2WikimhQA`, `gsm8k`, `svamp`, `ASDiv`
@@ -78,6 +82,8 @@ output/
     <dataset>/
       output_v1.json                         # CoT responses + keyword contributions
       error_questions/output_v1.json         # questions that exceeded retry limit
+      timing_inference.json                  # runtime stats for inference_refining.py
+      timing_stepuq.json                     # runtime stats for stepuq.py (per variant)
       confidences/
         output_v1_self-probing-baseline.json
         output_v1_self-probing-allkeyword.json

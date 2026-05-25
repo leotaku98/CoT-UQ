@@ -3,7 +3,9 @@
 
 import json
 import os
+import time
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 from tqdm import tqdm
 
 from config import args
@@ -134,6 +136,9 @@ def self_probing_uncertainty() -> None:
     output_dir = f"{args.output_path}/confidences/"
     os.makedirs(output_dir, exist_ok=True)
 
+    start_time = time.time()
+    variant_timings = {}
+
     for variant in VARIANTS:
         out_path = f"{output_dir}output_v1_self-probing-{variant}.json"
         print(f"\n=== Variant: {variant} → {out_path} ===")
@@ -152,11 +157,37 @@ def self_probing_uncertainty() -> None:
             for line in variant_data
         ]
 
+        v_start = time.time()
+        success_count = 0
+
         with open(out_path, "a", encoding="utf-8") as f_out:
             with ThreadPoolExecutor(max_workers=2) as executor:
                 for result in tqdm(executor.map(_probe_question, tasks), total=len(tasks), desc=variant):
                     if result is not None:
+                        success_count += 1
                         f_out.write(json.dumps(result, ensure_ascii=False) + "\n")
+
+        v_elapsed = time.time() - v_start
+        variant_timings[variant] = {
+            "elapsed_seconds": round(v_elapsed, 1),
+            "questions_processed": len(tasks),
+            "success": success_count,
+        }
+
+    total_elapsed = time.time() - start_time
+    timing = {
+        "stage": "stepuq",
+        "model": args.model_id,
+        "dataset": args.dataset,
+        "started_at": datetime.utcfromtimestamp(start_time).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "elapsed_seconds": round(total_elapsed, 1),
+        "elapsed_human": f"{int(total_elapsed // 3600)}h {int(total_elapsed % 3600 // 60)}m {int(total_elapsed % 60)}s",
+        "variants": variant_timings,
+    }
+    timing_path = f"{args.output_path}/timing_stepuq.json"
+    with open(timing_path, "w", encoding="utf-8") as f:
+        json.dump(timing, f, indent=2)
+    print(f"\nDone in {timing['elapsed_human']} — timing saved to {timing_path}")
 
 
 if __name__ == "__main__":
