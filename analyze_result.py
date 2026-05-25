@@ -5,6 +5,8 @@ import json
 import logging
 import os
 import time
+from typing import Optional
+
 import torch
 from tqdm import tqdm
 
@@ -36,7 +38,7 @@ def _model_output_path() -> str:
     return f"output/{model_name}/{args.dataset}"
 
 
-def openai_query(system_prompt: str, prompt: str, openai_model_name: str = "gpt-4o-mini") -> str:
+def openai_query(system_prompt, prompt, openai_model_name="gpt-4o-mini"):
     """Query OpenAI with retry on API errors."""
     client = OpenAI()
     sampled_response = None
@@ -56,7 +58,7 @@ def openai_query(system_prompt: str, prompt: str, openai_model_name: str = "gpt-
     return sampled_response
 
 
-def label_samples(output_path: str) -> None:
+def label_samples(output_path):
     """Write output_v1_w_labels.json with correctness labels for each question."""
     with open(f"{output_path}/output_v1.json", "r", encoding="utf-8") as f:
         json_data = [json.loads(line) for line in f if line.strip()]
@@ -94,7 +96,8 @@ def label_samples(output_path: str) -> None:
             }, ensure_ascii=False) + "\n")
 
 
-def compute_metrics(output_path: str, variant: str) -> dict | None:
+def compute_metrics(output_path, variant):
+    # type: (str, str) -> Optional[dict]
     """Compute AUROC and F1 for one variant. Returns None if output file missing."""
     labels_path = f"{output_path}/output_v1_w_labels.json"
     confidence_path = f"{output_path}/confidences/output_v1_self-probing-{variant}.json"
@@ -102,11 +105,12 @@ def compute_metrics(output_path: str, variant: str) -> dict | None:
     if not os.path.exists(confidence_path):
         return None
 
+    label_dict = {}
     with open(labels_path, "r", encoding="utf-8") as f:
-        label_dict = {
-            json.loads(line)["question"]: 1 if json.loads(line)["label"] else 0
-            for line in f if line.strip()
-        }
+        for line in f:
+            if line.strip():
+                entry = json.loads(line)
+                label_dict[entry["question"]] = 1 if entry["label"] else 0
 
     confidences, targets = [], []
     with open(confidence_path, "r", encoding="utf-8") as f:
@@ -144,7 +148,6 @@ if __name__ == "__main__":
             print(f"  [{variant}]  AUROC: {metrics['auroc']:.4f}  F1: {metrics['f1']:.4f}")
             variant_results[variant] = metrics
 
-    # Save to output/result/<dataset>/<model_name>.json, keyed by model
     result_dir = f"output/result/{args.dataset}"
     os.makedirs(result_dir, exist_ok=True)
     result_path = f"{result_dir}/{model_name}.json"
