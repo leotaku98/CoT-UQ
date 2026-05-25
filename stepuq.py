@@ -105,6 +105,21 @@ def _probe_question(task: tuple) -> dict | None:
     return None
 
 
+def _load_processed_questions(out_path: str) -> set:
+    """Return the set of question strings already written to a confidence file."""
+    if not os.path.exists(out_path):
+        return set()
+    processed = set()
+    with open(out_path, "r", encoding="utf-8") as f:
+        for line in f:
+            if line.strip():
+                try:
+                    processed.add(json.loads(line)["question"])
+                except (json.JSONDecodeError, KeyError):
+                    pass
+    return processed
+
+
 def self_probing_uncertainty() -> None:
     """Run self-probing for all 5 variants over output_v1.json."""
     with open(f"{args.output_path}/output_v1.json", "r", encoding="utf-8") as f:
@@ -123,9 +138,18 @@ def self_probing_uncertainty() -> None:
         out_path = f"{output_dir}output_v1_self-probing-{variant}.json"
         print(f"\n=== Variant: {variant} → {out_path} ===")
 
+        if args.resume:
+            processed_questions = _load_processed_questions(out_path)
+            variant_data = [line for line in json_data if line["question"] not in processed_questions]
+            print(f"  Resuming: {len(processed_questions)} already done, {len(variant_data)} remaining.")
+        else:
+            if os.path.exists(out_path):
+                open(out_path, "w").close()
+            variant_data = json_data
+
         tasks = [
             (line, variant, gen_kwargs, args.model_id, args.provider, args.try_times)
-            for line in json_data
+            for line in variant_data
         ]
 
         with open(out_path, "a", encoding="utf-8") as f_out:

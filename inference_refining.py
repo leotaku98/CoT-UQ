@@ -88,6 +88,22 @@ def _process_question(task: tuple) -> dict:
     return {"type": "error", "data": error_data, "output_path": output_path}
 
 
+def _load_processed_ids(output_path: str) -> set:
+    """Return the set of question IDs already written to output_v1.json."""
+    out_file = f"{output_path}/output_v1.json"
+    if not os.path.exists(out_file):
+        return set()
+    processed = set()
+    with open(out_file, "r", encoding="utf-8") as f:
+        for line in f:
+            if line.strip():
+                try:
+                    processed.add(json.loads(line)["id"])
+                except (json.JSONDecodeError, KeyError):
+                    pass
+    return processed
+
+
 def api_inference_refining() -> None:
     """Generate CoT responses and extract step-wise keyword contributions."""
     os.makedirs(args.output_path, exist_ok=True)
@@ -105,10 +121,22 @@ def api_inference_refining() -> None:
         "top_p": args.top_p,
     }
 
-    tasks = [
-        (idx, q, answer[idx], ids[idx], types[idx], gen_kwargs, args.output_path)
-        for idx, q in enumerate(question)
-    ]
+    out_file = f"{args.output_path}/output_v1.json"
+    if args.resume:
+        processed_ids = _load_processed_ids(args.output_path)
+        tasks = [
+            (idx, q, answer[idx], ids[idx], types[idx], gen_kwargs, args.output_path)
+            for idx, q in enumerate(question)
+            if ids[idx] not in processed_ids
+        ]
+        print(f"Resuming: {len(processed_ids)} already done, {len(tasks)} remaining.")
+    else:
+        if os.path.exists(out_file):
+            open(out_file, "w").close()
+        tasks = [
+            (idx, q, answer[idx], ids[idx], types[idx], gen_kwargs, args.output_path)
+            for idx, q in enumerate(question)
+        ]
 
     with ThreadPoolExecutor(max_workers=2) as executor:
         for result in tqdm(executor.map(_process_question, tasks), total=len(tasks)):

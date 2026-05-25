@@ -41,6 +41,10 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument("--test_start", default="0", help="start index for dataset slice")
     parser.add_argument("--test_end", default="full", help="end index or 'full'")
+    parser.add_argument(
+        "--resume", action="store_true",
+        help="skip already-processed questions instead of starting fresh"
+    )
 
     return parser.parse_args()
 

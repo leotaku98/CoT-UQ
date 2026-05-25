@@ -5,13 +5,20 @@
 export PYTHONPATH=./
 
 DATASET=$1
+RESUME_FLAG=""
 TRY_TIMES_INF=5
 TRY_TIMES_UQ=5
 
 if [ -z "$DATASET" ]; then
-    echo "Usage: sh run_api_pipeline.sh <dataset>"
+    echo "Usage: sh run_api_pipeline.sh <dataset> [--resume]"
     echo "Datasets: gsm8k svamp ASDiv hotpotQA 2WikimhQA"
+    echo "  --resume  skip already-processed questions, continue from where you left off"
     exit 1
+fi
+
+if [ "$2" = "--resume" ]; then
+    RESUME_FLAG="--resume"
+    echo "Resume mode: skipping already-processed questions."
 fi
 
 # Parse YAML and emit pipe-delimited lines: model_id|provider|temperature|max_new_tokens|top_p
@@ -43,7 +50,8 @@ while IFS='|' read -r MODEL_ID PROVIDER TEMPERATURE MAX_NEW_TOKENS TOP_P; do
         --max_new_tokens "${MAX_NEW_TOKENS}" \
         --top_p "${TOP_P}" \
         --output_path "${OUTPUT_PATH}" \
-        --try_times "${TRY_TIMES_INF}"
+        --try_times "${TRY_TIMES_INF}" \
+        ${RESUME_FLAG}
 
     python stepuq.py \
         --dataset "${DATASET}" \
@@ -53,7 +61,8 @@ while IFS='|' read -r MODEL_ID PROVIDER TEMPERATURE MAX_NEW_TOKENS TOP_P; do
         --max_new_tokens "${MAX_NEW_TOKENS}" \
         --top_p "${TOP_P}" \
         --output_path "${OUTPUT_PATH}" \
-        --try_times "${TRY_TIMES_UQ}"
+        --try_times "${TRY_TIMES_UQ}" \
+        ${RESUME_FLAG}
 
 done <<< "$MODEL_LINES"
 
