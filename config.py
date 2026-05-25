@@ -46,7 +46,7 @@ def parse_arguments() -> argparse.Namespace:
         help="skip already-processed questions instead of starting fresh"
     )
     parser.add_argument(
-        "--judge_model_id", default="meta-llama/Llama-3.3-70B-Instruct",
+        "--judge_model_id", default="Qwen/Qwen2.5-14B-Instruct",
         help="model used by analyze_result.py to judge answer equivalence for open-ended datasets"
     )
 
