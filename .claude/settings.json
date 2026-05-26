@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(**)",
+      "Bash(git *)",
+      "Bash(ls *)",
+      "Bash(ls)",
+      "Bash(find *)",
+      "Bash(cat *)",
+      "Bash(grep *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(wc *)",
+      "Bash(which *)",
+      "Bash(nvidia-smi *)",
+      "Bash(nvidia-smi)",
+      "Bash(conda info *)",
+      "Bash(conda list *)",
+      "Bash(tmux list-sessions)",
+      "Bash(tmux capture-pane *)",
+      "Bash(ps *)",
+      "Bash(df *)",
+      "Bash(du *)"
+    ]
+  }
+}

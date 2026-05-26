@@ -2,9 +2,12 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Running the Pipeline
+## Environment
 
-Set `PYTHONPATH=./` before running any script (the shell script does this automatically).
+- **Conda env:** `cotuq` — activate with `conda activate cotuq` before running anything.
+- Set `PYTHONPATH=./` before running any script (the shell script does this automatically).
+
+## Running the Pipeline
 
 **Full pipeline (recommended entry point):**
 ```shell
