@@ -9,7 +9,7 @@ def parse_arguments():
         help="maximum length of output tokens by model for reasoning extraction"
     )
     parser.add_argument(
-        "--try_times", type=int, default=20,
+        "--try_times", type=int, default=5,
         help="try times for meaningful reasoning process"
     )
     parser.add_argument(
@@ -45,7 +45,7 @@ def parse_arguments():
         "--test_start", default='0', help='string, number'
     )
     parser.add_argument(
-        "--test_end", default='full', help='string, number'
+        "--test_end", default='1000', help='string, number'
     )
     parsed_args = parser.parse_args()
     return parsed_args

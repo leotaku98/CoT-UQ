@@ -46,3 +46,6 @@ tmp/
 
 # Hugging Face cache
 .cache/
+
+# NFS temporary files
+.nfs*

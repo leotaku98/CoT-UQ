@@ -1,28 +1,5 @@
-<h1 align='center'>
-CoT-UQ: Improving Response-wise Uncertainty Quantification in LLMs with Chain-of-Thought
-</h1>
 
-<p align='center'>
-<a href="https://arxiv.org/abs/2502.17214"><img src="https://img.shields.io/badge/arXiv-2502.17214-b31b1b.svg" alt="ArXiv"></a> 
-<img src="https://badges.toozhao.com/badges/01JMPFHS6JM7CYJB9H6EEMKSM2/green.svg" />
-<a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-red.svg" alt="Liscence"></a>
-<img src="https://img.shields.io/github/stars/ZBox1005/CoT-UQ?color=yellow&label=Star" alt="Stars" >
-
-</p>
-
-This is the codebase of the paper: CoT-UQ: Improving Response-wise Uncertainty Quantification in LLMs with Chain-of-Thought ([arXiv](https://arxiv.org/abs/2502.17214)).
-
-**Author List**: Boxuan Zhang, Ruqi Zhang
-
-<div align="center">
-    <img src="figures/motivation_figure.jpg" width="70%"/>
-    <br>
-    <em>Comparison of <strong>existing UQ strategies</strong> with <strong>CoT-UQ</strong></em>
-</div>
-
-<br>
-
-[2024/02/21]🔥 We are releasing the **CoT-UQ** version 1.0 for running on Llama Family models.
+This codebase is modified based on https://github.com/ZBox1005/CoT-UQ.
 
 ## Getting Start
 
@@ -68,8 +45,22 @@ The components of our pipeline are:
 For instance, running the code on `Llama3.1-8B`:
 
 ```shell
-sh run_llama_pipeline.sh llama3-1_8B probas-mean hotpotQA output/llama-3.1-8B/
+# single dataset (output path is auto-derived)
+sh run_llama_pipeline.sh llama3-1_8B hotpotQA
+
+# multiple datasets
+sh run_llama_pipeline.sh llama3-1_8B hotpotQA gsm8k svamp
 ```
+
+#### Resuming an Interrupted Run
+
+`inference_refining.py` supports automatic resume. If a run is interrupted, simply rerun the **same command** :
+
+```shell
+sh run_llama_pipeline.sh llama3-1_8B hotpotQA gsm8k svamp
+```
+
+On startup, the script reads the existing `output_v1.json` (and `error_questions/output_v1.json`) and skips any question whose ID was already processed. No extra flags are needed.
 
 ### 4. Analyzing Results
 
