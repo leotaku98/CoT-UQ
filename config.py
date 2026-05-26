@@ -35,19 +35,13 @@ def parse_arguments():
         choices=["probas-mean", "probas-min", "token-sar", "p-true", "self-probing"]
     )
     parser.add_argument(
-        "--model_path", default='llama3-1_8B', help="your local model path",
-        choices=["llama3-1_8B", "llama2-13b"]
-    )
-    parser.add_argument(
-        "--output_path", default='output/llama-3.1-8B/', help="your local output path"
-    )
-    parser.add_argument(
         "--test_start", default='0', help='string, number'
     )
     parser.add_argument(
         "--test_end", default='1000', help='string, number'
     )
     parsed_args = parser.parse_args()
+    parsed_args.output_path = f"output/{parsed_args.model_engine}/{parsed_args.dataset}"
     return parsed_args
 
 

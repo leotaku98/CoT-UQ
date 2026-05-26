@@ -12,19 +12,19 @@ HF_NAMES = {
 }
 
 def model_init(args):
-    model_path = args.model_path # Replace to your model path
+    model_name = HF_NAMES[args.model_engine]
     device = torch.device("cuda:0")
-    if "llama" in args.model_path:
+    if "llama" in args.model_engine:
         model = LlamaForCausalLM.from_pretrained(
-            HF_NAMES[model_path],# config = config, 
+            model_name,
             torch_dtype=torch.bfloat16,
         ).to(device)
-        tokenizer = AutoTokenizer.from_pretrained(HF_NAMES[model_path])
-    elif "mistral" in args.model_path:
-        model = AutoModelForCausalLM.from_pretrained(HF_NAMES[model_path], torch_dtype=torch.bfloat16).to(device)
-        tokenizer = AutoTokenizer.from_pretrained(HF_NAMES[model_path])
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+    elif "mistral" in args.model_engine:
+        model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.bfloat16).to(device)
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
     else:
-        raise("Invalid Model Path")
+        raise ValueError(f"Invalid model engine: {args.model_engine}")
     return model, tokenizer, device
 
 def predict(args, prompt, model, tokenizer):
@@ -74,8 +74,7 @@ def generate_model_answer(args, prompt, model, tokenizer, device, do_sample=Fals
                            temperature=1.0,
                            top_p=1.0, max_new_tokens=100, stop_token_id=None, verbose=False):
 
-    model_path = args.model_path 
-    model_name = HF_NAMES[model_path]
+    model_name = HF_NAMES[args.model_engine]
 
     model_input = tokenize(prompt, tokenizer, model_name).to(device)
 

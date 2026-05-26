@@ -42,6 +42,11 @@ The components of our pipeline are:
 * `inference_refining.py` focuses on refining the multi-step inference by extracting keywords and their corresponding importance scores to the final answer.
 * `stepuq.py` integrates the crucial reasoning information into the two common UQ strategies, aggregated probabilities and self-evaluation, respectively.
 
+```shell
+sh run_llama_pipeline.sh <model_engine> <dataset>
+
+```
+
 For instance, running the code on `Llama3.1-8B`:
 
 ```shell
@@ -68,8 +73,10 @@ After running the pipeline, use `analyze_result.py` to compute performance metri
 >**Note**: for logical reasoning datasets, we need `gpt-4o-mini` to analyze the correctness of the llm answer (judge the consistence between predictions and GTs), so please specify your own OPENAI API KEY in the environment.
 
 ```shell
-python analyze_result.py --uq_engine probas-mean --dataset hotpotQA --output_path output/llama-3.1-8B/
+python analyze_result.py --uq_engine probas-mean --dataset hotpotQA --model_engine llama3-1_8B
 ```
+
+The output path (`output/llama3-1_8B/hotpotQA/`) is derived automatically from `--model_engine` and `--dataset`.
 
 ## Main Results
 

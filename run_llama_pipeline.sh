@@ -5,6 +5,8 @@ DATASETS=("$@")
 
 TEMP=1.0
 TRY_TIMES=5
+TEST_START=0
+TEST_END=1000
 
 for DATASET in "${DATASETS[@]}"; do
     OUTPUT_PATH="output/${MODEL_ENGINE}/${DATASET}"
@@ -17,10 +19,11 @@ for DATASET in "${DATASETS[@]}"; do
     echo "======================================================"
 
     CUDA_VISIBLE_DEVICES='0' \
-    python inference_refining.py --dataset ${DATASET} --model_engine ${MODEL_ENGINE} --model_path ${MODEL_ENGINE} \
-        --temperature ${TEMP} --output_path ${OUTPUT_PATH} --try_times ${TRY_TIMES}
+    python inference_refining.py --dataset ${DATASET} --model_engine ${MODEL_ENGINE} \
+        --temperature ${TEMP} --try_times ${TRY_TIMES} \
+        --test_start ${TEST_START} --test_end ${TEST_END}
 
     CUDA_VISIBLE_DEVICES='0' \
-    python stepuq.py --dataset ${DATASET} --uq_engine self-probing --model_path ${MODEL_ENGINE} \
-        --temperature ${TEMP} --output_path ${OUTPUT_PATH} --try_times 5
+    python stepuq.py --dataset ${DATASET} --model_engine ${MODEL_ENGINE} \
+        --uq_engine self-probing --temperature ${TEMP} --try_times 5
 done
