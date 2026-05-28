@@ -5,7 +5,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Environment
 
 - **Conda env:** `cotuq` — activate with `conda activate cotuq` before running anything.
-- Set `PYTHONPATH=./` before running any script (the shell script does this automatically).
+- **`PYTHONPATH`** must be set once per shell session before running any script:
+  ```shell
+  export PYTHONPATH=./
+  ```
+  `run_llama_pipeline.sh` sets this automatically; only needed when running individual scripts directly.
 
 ## Running the Pipeline
 
@@ -22,21 +26,22 @@ sh run_llama_pipeline.sh llama3-1_8B hotpotQA gsm8k svamp
 **Individual steps:**
 ```shell
 # Step 1 — inference + reasoning refinement (writes output_v1.json)
-PYTHONPATH=./ python inference_refining.py --dataset hotpotQA --model_engine llama3-1_8B \
+python inference_refining.py --dataset hotpotQA --model_engine llama3-1_8B \
   --temperature 1.0 --try_times 5 --test_start 0 --test_end 1000
 
 # Step 2 — UQ scoring (reads output_v1.json, writes confidences/output_v1_<uq_engine>.json)
-PYTHONPATH=./ python stepuq.py --dataset hotpotQA --model_engine llama3-1_8B \
+python stepuq.py --dataset hotpotQA --model_engine llama3-1_8B \
   --uq_engine probas-mean --temperature 1.0 --try_times 5
 
 # Step 3 — evaluate (requires OPENAI_API_KEY for non-math datasets)
-PYTHONPATH=./ python analyze_result.py --uq_engine probas-mean --dataset hotpotQA \
-  --model_engine llama3-1_8B
+python analyze_result.py --dataset hotpotQA --model_engine llama3-1_8B
 ```
 
 **Supported values** (defined in [config.py](config.py)):
 - `model_engine`: `llama3-1_8B`, `llama2-13b`
-- `uq_engine`: `probas-mean`, `probas-min`, `token-sar`, `p-true`, `self-probing`
+- `uq_engine` (used by `stepuq.py` only):
+  - Probability-based: `probas-mean`, `probas-min`, `token-sar`, `p-true`
+  - Self-probing variants: `self-probing-baseline`, `self-probing-keyword`, `self-probing-allkeyword`, `self-probing-keystep`, `self-probing-allstep`
 - `dataset`: `gsm8k`, `svamp`, `ASDiv`, `hotpotQA`, `2WikimhQA`
 
 Slice the dataset with `--test_start <int>` and `--test_end <int|full>` (defaults: 0 / 1000).
@@ -61,7 +66,15 @@ Reads `output_v1.json` and computes a scalar confidence score per answer using o
 - **`probas-mean` / `probas-min`** (`compute_step_uncertainty`): aggregate keyword token probabilities weighted by contribution scores via `extract_p()` + `weighted_sum()`.
 - **`token-sar`** (`compute_step_uncertainty`): same flow but uses sentence-similarity-based token importance (`extract_p_t_importance()` via `cross-encoder/stsb-roberta-large`).
 - **`p-true`** (`p_true_uncertainty`): prompts the model to classify the answer as True/False; confidence = P(token "A") from softmax.
-- **`self-probing`** (`self_probing_uncertainty`): prompts the model for a percentage confidence given the most critical reasoning step (`extract_keystep()`).
+- **`self-probing-*`** (`self_probing_uncertainty`): prompts the model for a percentage confidence (0–100 %) and parses it as the scalar score. Five variants differ only in what reasoning context is included in the prompt:
+
+  | `uq_engine` | Context provided to model |
+  |---|---|
+  | `self-probing-baseline` | None — question + answer only |
+  | `self-probing-keyword` | Keywords from the single highest-contribution step (`extract_keykeywords`, threshold 0.5) |
+  | `self-probing-allkeyword` | All keywords from every step (`extract_allkeywords`) |
+  | `self-probing-keystep` | Full text of the highest-contribution step (`extract_keystep`) |
+  | `self-probing-allstep` | Full CoT response (all steps) |
 
 Output: `output/<model_engine>/<dataset>/confidences/output_v1_<uq_engine>.json`
 

@@ -23,7 +23,9 @@ for DATASET in "${DATASETS[@]}"; do
         --temperature ${TEMP} --try_times ${TRY_TIMES} \
         --test_start ${TEST_START} --test_end ${TEST_END}
 
-    CUDA_VISIBLE_DEVICES='0' \
-    python stepuq.py --dataset ${DATASET} --model_engine ${MODEL_ENGINE} \
-        --uq_engine self-probing --temperature ${TEMP} --try_times 5
+    for UQ_ENGINE in self-probing-baseline self-probing-keyword self-probing-allkeyword self-probing-keystep self-probing-allstep; do
+        CUDA_VISIBLE_DEVICES='0' \
+        python stepuq.py --dataset ${DATASET} --model_engine ${MODEL_ENGINE} \
+            --uq_engine ${UQ_ENGINE} --temperature ${TEMP} --try_times 5
+    done
 done

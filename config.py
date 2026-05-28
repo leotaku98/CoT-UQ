@@ -31,8 +31,15 @@ def parse_arguments():
         choices=["llama3-1_8B", "llama2-13b"]
     )
     parser.add_argument(
-        "--uq_engine", default='probas-mean', help="uncertainty quantification engine",
-        choices=["probas-mean", "probas-min", "token-sar", "p-true", "self-probing"]
+        "--uq_engine", default='self-probing-keystep', help="uncertainty quantification engine",
+        choices=[
+            "self-probing-baseline", "self-probing-keyword",
+            "self-probing-allkeyword", "self-probing-keystep", "self-probing-allstep",
+        ]
+    )
+    parser.add_argument(
+        "--keyword_threshold", type=float, default=0.5,
+        help="minimum contribution score fraction (0-1) to include a keyword in self-probing-keyword"
     )
     parser.add_argument(
         "--test_start", default='0', help='string, number'

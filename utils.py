@@ -195,6 +195,27 @@ def setup_log(args):
 
 
 
+def extract_keykeywords(contribution_scores: dict, threshold: float = 0.5) -> list:
+    """Return keywords whose contribution score is at or above threshold * 10 (max score)."""
+    if not contribution_scores:
+        return []
+    min_score = threshold * 10
+    keywords = []
+    for inner_dict in contribution_scores.values():
+        for keyword, score in inner_dict.items():
+            if score is not None and score >= min_score:
+                keywords.append(keyword)
+    return keywords
+
+
+def extract_allkeywords(contribution_scores: dict) -> list:
+    """Return all keywords from all steps."""
+    keywords = []
+    for inner_dict in contribution_scores.values():
+        keywords.extend(inner_dict.keys())
+    return keywords
+
+
 def extract_keystep(llm_response, contribution_scores=None):
     """Return the text of the reasoning step with the highest average contribution score."""
     if contribution_scores is None:

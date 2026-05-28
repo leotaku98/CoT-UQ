@@ -14,3 +14,6 @@ pydantic==1.10.11
 fastapi==0.95.1
 sse-starlette
 sentence_transformers
+torchmetrics
+openai
+python-dotenv

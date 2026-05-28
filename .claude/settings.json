@@ -20,7 +20,11 @@
       "Bash(tmux capture-pane *)",
       "Bash(ps *)",
       "Bash(df *)",
-      "Bash(du *)"
+      "Bash(du *)",
+      "Bash(conda run *)",
+      "Bash(tmux new-session *)",
+      "Bash(tmux ls *)",
+      "Bash(tmux kill-session *)"
     ]
   }
 }

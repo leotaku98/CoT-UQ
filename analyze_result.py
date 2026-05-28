@@ -1,8 +1,12 @@
 import json
-import torch
-import time
 import logging
+import os
+import time
+import torch
+from dotenv import load_dotenv
 from tqdm import tqdm
+
+load_dotenv()
 
 from config import args
 from utils import print_exp
@@ -77,14 +81,11 @@ def label_samples():
             formatted_data = {
                 "id": id,
                 "question": question,
-                # "type": t,
                 "correct answer": correct_answer,
                 "llm answer": llm_answer,
                 "label": label,
                 "llm response": line['llm response'],
-                "llm answer token probability": line['llm answer token probability'], 
                 "step-wise keywords": line['step-wise keywords'],
-                "keyword token probability": line['keyword token probability'],
                 "keyword contribution": line['keyword contribution'],
             }
             f.write(json.dumps(formatted_data, ensure_ascii=False) + "\n")
@@ -121,9 +122,26 @@ def compute_auroc():
 
     print(f"AUROC: {auroc_value}")
 
+    result_path = os.path.join("output", args.dataset, "result.json")
+    os.makedirs(os.path.dirname(result_path), exist_ok=True)
+    if os.path.exists(result_path):
+        with open(result_path, 'r', encoding='utf-8') as f:
+            results = json.load(f)
+    else:
+        results = {}
+
+    results.setdefault(args.model_engine, {})[args.uq_engine] = round(auroc_value.item(), 6)
+
+    with open(result_path, 'w', encoding='utf-8') as f:
+        json.dump(results, f, indent=2, ensure_ascii=False)
+
 
 if __name__ == '__main__':
-    print_exp(args) 
+    print_exp(args)
 
-    label_samples()
+    labels_path = f"{args.output_path}/output_v1_w_labels.json"
+    if os.path.exists(labels_path):
+        print(f"Labels file already exists, skipping label_samples()")
+    else:
+        label_samples()
     compute_auroc()

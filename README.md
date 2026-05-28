@@ -32,7 +32,17 @@ if args.dataset.lower() == 'gsm8k':
       ids.append(id)
 ```
 
-### 3. Running CoT-UQ Pipeline
+### 3. Set Up Environment Variable
+
+Before running any script directly, export `PYTHONPATH` once in your shell session:
+
+```shell
+export PYTHONPATH=./
+```
+
+`run_llama_pipeline.sh` handles this automatically — only needed when calling scripts individually.
+
+### 4. Running CoT-UQ Pipeline
 
 Get your Llama Family weight in https://huggingface.co/meta-llama
 
@@ -67,16 +77,73 @@ sh run_llama_pipeline.sh llama3-1_8B hotpotQA gsm8k svamp
 
 On startup, the script reads the existing `output_v1.json` (and `error_questions/output_v1.json`) and skips any question whose ID was already processed. No extra flags are needed.
 
-### 4. Analyzing Results
+### 5. Sampling Method (Alternative)
 
-After running the pipeline, use `analyze_result.py` to compute performance metrics, such as the AUROC.
->**Note**: for logical reasoning datasets, we need `gpt-4o-mini` to analyze the correctness of the llm answer (judge the consistence between predictions and GTs), so please specify your own OPENAI API KEY in the environment.
+`methods/sampling/sampling_inference.py` is an alternative to the CoT-UQ pipeline. Instead of extracting keywords and contribution scores, it samples **5 CoT responses per question** at a fixed temperature and stores them all. The variance in answers across samples serves as the uncertainty signal.
 
-```shell
-python analyze_result.py --uq_engine probas-mean --dataset hotpotQA --model_engine llama3-1_8B
+Output is saved to `output/<model_engine>/<dataset>/sampling_v1.json` alongside the CoT-UQ output. Each line is one question with all 5 samples:
+
+```json
+{
+  "id": "...",
+  "question": "...",
+  "correct answer": "...",
+  "samples": [
+    {"llm response": "Step 1: ...\nFinal Answer: Paris", "llm answer": "Paris"},
+    {"llm response": "Step 1: ...\nFinal Answer: London", "llm answer": "London"}
+  ]
+}
 ```
 
-The output path (`output/llama3-1_8B/hotpotQA/`) is derived automatically from `--model_engine` and `--dataset`.
+```shell
+python methods/sampling/sampling_inference.py --dataset hotpotQA --model_engine llama3-1_8B --temperature 1.0
+```
+
+Resume is automatic — rerunning the same command skips already-processed questions.
+
+### 6. Self-Probing Variants
+
+`stepuq.py` supports 5 self-probing variants that differ in what reasoning context is shown to the model. All variants prompt the model to output a percentage confidence (0–100 %) and use that as the scalar uncertainty score.
+
+| `--uq_engine` | Context provided to model | What is run |
+|---|---|---|
+| `self-probing-baseline` | None — question + answer only | Confidence with no reasoning context |
+| `self-probing-keyword` | Keywords from the single highest-contribution step | Confidence given key terms from the most decisive step |
+| `self-probing-allkeyword` | All keywords from every step | Confidence given all extracted keywords |
+| `self-probing-keystep` | Full text of the highest-contribution step | Confidence given the most decisive full step |
+| `self-probing-allstep` | Full CoT response (all steps) | Confidence given the entire chain of thought |
+
+**Output:** each variant writes independently to
+`output/<model_engine>/<dataset>/confidences/output_v1_<uq_engine>.json`
+(one JSON object per line with `id`, `question`, `llm_answer`, `confidence`).
+
+Run a single variant:
+```shell
+python stepuq.py --dataset hotpotQA --model_engine llama3-1_8B \
+  --uq_engine self-probing-keyword --test_end 1000
+```
+
+For long runs, launch in a named tmux session (replace `<variant>` with the engine name):
+```shell
+tmux new-session -d -s <variant> "PYTHONPATH=./ python stepuq.py \
+  --dataset hotpotQA --model_engine llama3-1_8B --uq_engine <variant> \
+  --test_end 1000 2>&1 | tee tmp/<variant>.log"
+```
+
+> The tmux command includes `PYTHONPATH=./` explicitly because tmux starts a new shell that does not inherit your exported variables.
+
+Resume is automatic — rerunning the same command skips already-processed question IDs.
+
+### 7. Analyzing Results
+
+After running `stepuq.py`, use `analyze_result.py` to compute AUROC for a specific variant.
+>**Note**: for logical reasoning datasets, we need `gpt-4o-mini` to judge answer correctness. Set `OPENAI_API_KEY` in a `.env` file at the project root. The labeling step is skipped automatically if already completed.
+
+```shell
+python analyze_result.py --dataset hotpotQA --model_engine llama3-1_8B --uq_engine self-probing-keystep
+```
+
+The output path is derived automatically from `--model_engine` and `--dataset`.
 
 ## Main Results
 
