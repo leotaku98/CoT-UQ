@@ -49,15 +49,28 @@ def openai_query(system_prompt, prompt, openai_model_name="gpt-4o-mini"):
 
 def label_samples():
     with open(f"{args.output_path}/output_v1.json", 'r', encoding='utf-8') as f:
-        json_data = []
-        for line in f.readlines():
-            dic = json.loads(line)
-            json_data.append(dic)
+        json_data = [json.loads(line) for line in f if line.strip()]
 
-    with open(f"{args.output_path}/output_v1_w_labels.json", "a", encoding="utf-8") as f:
+    labels_path = f"{args.output_path}/output_v1_w_labels.json"
+    labeled_ids: set = set()
+    if os.path.exists(labels_path):
+        with open(labels_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    try:
+                        labeled_ids.add(json.loads(line)['id'])
+                    except (json.JSONDecodeError, KeyError):
+                        pass
+    if labeled_ids:
+        print(f"Resuming: skipping {len(labeled_ids)} already-labeled questions.")
+
+    with open(labels_path, "a", encoding="utf-8") as f:
         for idx, line in enumerate(tqdm(json_data, total=len(json_data))):
             # give labels for open-ended llm answer
             id = line['id']
+            if id in labeled_ids:
+                continue
             question = line['question']
             correct_answer = line['correct answer']
             llm_answer = line['llm answer']
@@ -139,9 +152,5 @@ def compute_auroc():
 if __name__ == '__main__':
     print_exp(args)
 
-    labels_path = f"{args.output_path}/output_v1_w_labels.json"
-    if os.path.exists(labels_path):
-        print(f"Labels file already exists, skipping label_samples()")
-    else:
-        label_samples()
+    label_samples()
     compute_auroc()

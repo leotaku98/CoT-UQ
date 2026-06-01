@@ -71,11 +71,32 @@ def _build_self_probing_prompt(variant: str, question: str, llm_answer: str,
     )
 
 
+def _load_processed_questions(output_path: str, uq_engine: str) -> set:
+    conf_path = f"{output_path}/confidences/output_v1_{uq_engine}.json"
+    processed: set = set()
+    if not os.path.exists(conf_path):
+        return processed
+    with open(conf_path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                processed.add(json.loads(line)["question"])
+            except (json.JSONDecodeError, KeyError):
+                continue
+    return processed
+
+
 def self_probing_uncertainty():
     with open(f"{args.output_path}/output_v1.json", 'r', encoding='utf-8') as f:
         json_data = [json.loads(line) for line in f.readlines()]
     if args.test_end != 'full':
         json_data = json_data[int(args.test_start):int(args.test_end)]
+
+    processed_questions = _load_processed_questions(args.output_path, args.uq_engine)
+    if processed_questions:
+        print(f"Resuming: skipping {len(processed_questions)} already-processed questions.")
 
     model, tokenizer, device = model_init(args)
 
@@ -85,6 +106,8 @@ def self_probing_uncertainty():
     for idx, line in enumerate(tqdm(json_data, total=len(json_data))):
         with open(f"{args.output_path}/confidences/output_v1_{args.uq_engine}.json", "a", encoding="utf-8") as f:
             question = line['question']
+            if question in processed_questions:
+                continue
             correct_answer = line['correct answer']
             llm_answer = line['llm answer']
             llm_response = line['llm response']

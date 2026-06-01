@@ -227,8 +227,9 @@ def extract_keystep(llm_response, contribution_scores=None):
         step_avg_cons.append(avg_con)
     max_con = max(step_avg_cons)
     step_idx = len(step_avg_cons) - 1 - step_avg_cons[::-1].index(max_con)
-    return_text = llm_response.split("\n")[step_idx].strip()
-    return_text = return_text.split(f"Step {str(step_idx + 1)}: ")[-1]
+    lines = llm_response.split("\n")
+    line = lines[min(step_idx, len(lines) - 1)].strip()
+    return_text = line.split(f"Step {str(step_idx + 1)}: ")[-1]
     return return_text.strip()
 
 

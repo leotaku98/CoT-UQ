@@ -3,8 +3,8 @@
     "allow": [
       "Read(**)",
       "Bash(git *)",
-      "Bash(ls *)",
       "Bash(ls)",
+      "Bash(ls *)",
       "Bash(find *)",
       "Bash(cat *)",
       "Bash(grep *)",
@@ -12,19 +12,18 @@
       "Bash(tail *)",
       "Bash(wc *)",
       "Bash(which *)",
-      "Bash(nvidia-smi *)",
       "Bash(nvidia-smi)",
-      "Bash(conda info *)",
-      "Bash(conda list *)",
-      "Bash(tmux list-sessions)",
-      "Bash(tmux capture-pane *)",
+      "Bash(nvidia-smi *)",
+      "Bash(tmux *)",
+      "Bash(conda *)",
       "Bash(ps *)",
       "Bash(df *)",
       "Bash(du *)",
-      "Bash(conda run *)",
-      "Bash(tmux new-session *)",
-      "Bash(tmux ls *)",
-      "Bash(tmux kill-session *)"
+      "Bash(python3 *)",
+      "Bash(python *)",
+      "Bash(mv *)",
+      "Bash(mkdir *)",
+      "Bash(pip show *)"
     ]
   }
 }

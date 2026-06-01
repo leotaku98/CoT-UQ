@@ -45,7 +45,7 @@ def parse_arguments():
         "--test_start", default='0', help='string, number'
     )
     parser.add_argument(
-        "--test_end", default='1000', help='string, number'
+        "--test_end", default='full', help='string, number'
     )
     parsed_args = parser.parse_args()
     parsed_args.output_path = f"output/{parsed_args.model_engine}/{parsed_args.dataset}"

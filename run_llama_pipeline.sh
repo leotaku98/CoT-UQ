@@ -5,9 +5,6 @@ DATASETS=("$@")
 
 TEMP=1.0
 TRY_TIMES=5
-TEST_START=0
-TEST_END=1000
-
 for DATASET in "${DATASETS[@]}"; do
     OUTPUT_PATH="output/${MODEL_ENGINE}/${DATASET}"
     mkdir -p "${OUTPUT_PATH}" "${OUTPUT_PATH}/confidences" "${OUTPUT_PATH}/error_questions"
@@ -20,8 +17,7 @@ for DATASET in "${DATASETS[@]}"; do
 
     CUDA_VISIBLE_DEVICES='0' \
     python inference_refining.py --dataset ${DATASET} --model_engine ${MODEL_ENGINE} \
-        --temperature ${TEMP} --try_times ${TRY_TIMES} \
-        --test_start ${TEST_START} --test_end ${TEST_END}
+        --temperature ${TEMP} --try_times ${TRY_TIMES}
 
     for UQ_ENGINE in self-probing-baseline self-probing-keyword self-probing-allkeyword self-probing-keystep self-probing-allstep; do
         CUDA_VISIBLE_DEVICES='0' \

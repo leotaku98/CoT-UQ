@@ -2,9 +2,12 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> **Experiment progress tracker:** [.claude/docs/PROGRESS.md](.claude/docs/PROGRESS.md) — check here first to see what has been run and what is pending.
+
 ## Environment
 
 - **Conda env:** `cotuq` — activate with `conda activate cotuq` before running anything.
+- **Python:** `python` is not in PATH; always use `python3` in the shell, or the full path `/home/haowhuan/Data/miniconda3/envs/cotuq/bin/python` inside tmux sessions where conda is not activated.
 - **`PYTHONPATH`** must be set once per shell session before running any script:
   ```shell
   export PYTHONPATH=./
@@ -27,11 +30,18 @@ sh run_llama_pipeline.sh llama3-1_8B hotpotQA gsm8k svamp
 ```shell
 # Step 1 — inference + reasoning refinement (writes output_v1.json)
 python inference_refining.py --dataset hotpotQA --model_engine llama3-1_8B \
-  --temperature 1.0 --try_times 5 --test_start 0 --test_end 1000
+  --temperature 1.0 --try_times 5
+
+# Step 1b — ensemble inference (writes ensemble_v1.json, N samples per question)
+python methods/sampling/sampling_inference.py --dataset gsm8k --model_engine llama3-1_8B
+
+# Step 1c — pBD-DTW UQ on ensemble (reads ensemble_v1.json, writes confidences/ensemble_v1_pbd_dtw.json)
+#           No GPU needed. ~0.1s/question.
+python3 methods/pbd_ensemble/pbd_dtw.py --dataset gsm8k --model_engine llama3-1_8B
 
 # Step 2 — UQ scoring (reads output_v1.json, writes confidences/output_v1_<uq_engine>.json)
 python stepuq.py --dataset hotpotQA --model_engine llama3-1_8B \
-  --uq_engine probas-mean --temperature 1.0 --try_times 5
+  --uq_engine self-probing-keystep --temperature 1.0 --try_times 5
 
 # Step 3 — evaluate (requires OPENAI_API_KEY for non-math datasets)
 python analyze_result.py --dataset hotpotQA --model_engine llama3-1_8B
@@ -39,12 +49,10 @@ python analyze_result.py --dataset hotpotQA --model_engine llama3-1_8B
 
 **Supported values** (defined in [config.py](config.py)):
 - `model_engine`: `llama3-1_8B`, `llama2-13b`
-- `uq_engine` (used by `stepuq.py` only):
-  - Probability-based: `probas-mean`, `probas-min`, `token-sar`, `p-true`
-  - Self-probing variants: `self-probing-baseline`, `self-probing-keyword`, `self-probing-allkeyword`, `self-probing-keystep`, `self-probing-allstep`
+- `uq_engine` (used by `stepuq.py` only): `self-probing-baseline`, `self-probing-keyword`, `self-probing-allkeyword`, `self-probing-keystep`, `self-probing-allstep`
 - `dataset`: `gsm8k`, `svamp`, `ASDiv`, `hotpotQA`, `2WikimhQA`
 
-Slice the dataset with `--test_start <int>` and `--test_end <int|full>` (defaults: 0 / 1000).
+Slice the dataset with `--test_start <int>` and `--test_end <int|full>` (defaults: 0 / full).
 
 **Resume:** if a run is interrupted, rerun the same command — already-processed IDs are skipped automatically.
 
@@ -62,11 +70,7 @@ Generates CoT responses from the Llama model and, for each valid response, extra
 Output: `output/<model_engine>/<dataset>/output_v1.json` (one JSON object per line). Failed questions go to `error_questions/output_v1.json` in the same directory. The inner retry loop (`try_times=5`) discards responses that are too long, empty, missing a "Final Answer:", or where token alignment fails.
 
 ### Stage 2 — Step-wise UQ ([stepuq.py](stepuq.py))
-Reads `output_v1.json` and computes a scalar confidence score per answer using one of five strategies:
-- **`probas-mean` / `probas-min`** (`compute_step_uncertainty`): aggregate keyword token probabilities weighted by contribution scores via `extract_p()` + `weighted_sum()`.
-- **`token-sar`** (`compute_step_uncertainty`): same flow but uses sentence-similarity-based token importance (`extract_p_t_importance()` via `cross-encoder/stsb-roberta-large`).
-- **`p-true`** (`p_true_uncertainty`): prompts the model to classify the answer as True/False; confidence = P(token "A") from softmax.
-- **`self-probing-*`** (`self_probing_uncertainty`): prompts the model for a percentage confidence (0–100 %) and parses it as the scalar score. Five variants differ only in what reasoning context is included in the prompt:
+Reads `output_v1.json` and computes a scalar confidence score per answer. All five strategies use `self_probing_uncertainty`, prompting the model for a percentage confidence (0–100 %) and parsing it as the scalar score. Variants differ only in what reasoning context is included in the prompt:
 
   | `uq_engine` | Context provided to model |
   |---|---|
@@ -77,6 +81,11 @@ Reads `output_v1.json` and computes a scalar confidence score per answer using o
   | `self-probing-allstep` | Full CoT response (all steps) |
 
 Output: `output/<model_engine>/<dataset>/confidences/output_v1_<uq_engine>.json`
+
+### Stage 1b — Ensemble Inference ([methods/sampling/sampling_inference.py](methods/sampling/sampling_inference.py))
+Alternative to Stage 1: generates 5 independent sampled responses per question (temperature sampling, `do_sample=True`) instead of a single greedy CoT. Output per question includes all 5 `llm response` / `llm answer` pairs.
+
+Output: `output/<model_engine>/<dataset>/ensemble_v1.json` (one JSON object per line). Supports resume.
 
 ### Stage 3 — Evaluation ([analyze_result.py](analyze_result.py))
 - `label_samples()`: creates `output_v1_w_labels.json` — for math datasets uses string matching; for open-ended datasets calls GPT-4o-mini (needs `OPENAI_API_KEY` in environment).
