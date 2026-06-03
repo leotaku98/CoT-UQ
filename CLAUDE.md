@@ -35,9 +35,13 @@ python inference_refining.py --dataset hotpotQA --model_engine llama3-1_8B \
 # Step 1b — ensemble inference (writes ensemble_v1.json, N samples per question)
 python methods/sampling/sampling_inference.py --dataset gsm8k --model_engine llama3-1_8B
 
-# Step 1c — pBD-DTW UQ on ensemble (reads ensemble_v1.json, writes confidences/ensemble_v1_pbd_dtw.json)
+# Step 1c — pBD UQ on ensemble (reads ensemble_v1.json, writes confidences/ensemble_v1_pBD.json)
 #           No GPU needed. ~0.1s/question.
-python3 methods/pbd_ensemble/pbd_dtw.py --dataset gsm8k --model_engine llama3-1_8B
+python3 methods/bd_ensemble/pBD.py --dataset gsm8k --model_engine llama3-1_8B
+
+# Step 1d — vBD UQ on ensemble (reads ensemble_v1.json, writes confidences/ensemble_v1_vBD.json)
+#           No GPU needed. ~0.03s/question.
+python3 methods/bd_ensemble/vBD.py --dataset gsm8k --model_engine llama3-1_8B
 
 # Step 2 — UQ scoring (reads output_v1.json, writes confidences/output_v1_<uq_engine>.json)
 python stepuq.py --dataset hotpotQA --model_engine llama3-1_8B \

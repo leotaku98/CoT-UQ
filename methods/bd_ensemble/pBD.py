@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-UQ via Path Band Depth with DTW alignment (Approach A — order-sensitive).
+UQ via Path Band Depth with DTW alignment (pBD — order-sensitive).
 
 Reads:  output/<model_engine>/<dataset>/ensemble_v1.json
-Writes: output/<model_engine>/<dataset>/confidences/ensemble_v1_pbd_dtw.json
+Writes: output/<model_engine>/<dataset>/confidences/ensemble_v1_pBD.json
 
 Each output line:
     {"id": ..., "question": ..., "correct answer": ...,
@@ -15,7 +15,6 @@ High confidence → chains are central/consistent. Low → scattered reasoning.
 
 import json
 import os
-import random
 import re
 import sys
 from collections import Counter
@@ -30,8 +29,6 @@ from utils import parse_response_to_dict, setup_log, print_exp
 
 # ── Hyperparameters ────────────────────────────────────────────────────────────
 ENCODER_MODEL = "all-MiniLM-L6-v2"  # 384-d, fast, good for sentence similarity
-J = 2           # band formed by j reference chains
-N_TRIALS = 100  # random j-subsets to sample per chain
 # ──────────────────────────────────────────────────────────────────────────────
 
 
@@ -176,56 +173,44 @@ def _soft_membership(p_step: np.ndarray, ref_steps: list[np.ndarray]) -> float:
 
 # ── Step 5: pBD score for one chain ───────────────────────────────────────────
 
-def _pbd_score(
-    emb_p: np.ndarray,
-    others: list[np.ndarray],
-    j: int = J,
-    n_trials: int = N_TRIALS,
-) -> float:
+def _pbd_score(emb_p: np.ndarray, others: list[np.ndarray]) -> float:
     """
-    Estimate the modified pBD score for chain emb_p against the ensemble.
+    Compute the pBD centrality score for chain emb_p against the full ensemble.
 
-    For each trial:
-      1. Sample j reference chains from others.
-      2. DTW-align emb_p against each reference.
-      3. At each position k in emb_p, gather the DTW-matched steps from each ref.
-         (DTW is many-to-one: average matched ref steps when multiple map to k.)
-      4. Compute soft band membership at each k; average over k → trial score.
-    Final pBD = mean over all trials.
+    For a finite ensemble, the centroid of all remaining chains is a more stable
+    reference than random pair sampling. For each step position k in emb_p:
+      1. DTW-align emb_p against every other chain.
+      2. Collect the DTW-matched step embeddings from all other chains at k.
+         (Average when DTW maps multiple steps of a reference to position k.)
+      3. Compute the centroid of those collected embeddings.
+      4. Score = cosine similarity of emb_p[k] to that centroid.
+    Final score = mean over all step positions k.
     """
-    if len(others) < j:
-        return 1.0  # degenerate: treat as perfectly central
-    # skip chains that are zero vectors (failed parse → no valid steps)
+    if not others:
+        return 1.0
     if not np.any(emb_p):
         return 0.0
 
-    trial_scores = []
-    for _ in range(n_trials):
-        refs = random.sample(others, j)
+    n = len(emb_p)
+    # p_ref_steps[k] = list of reference embeddings matched to p[k], across all refs
+    p_ref_steps: list[list[np.ndarray]] = [[] for _ in range(n)]
 
-        # Build mapping: position k in p → list of matched ref step indices, per ref
-        alignments = [_dtw_path(emb_p, ref) for ref in refs]
-        n = len(emb_p)
-        # p_ref_map[k][r] = list of ref indices matched to p[k] by reference r
-        p_ref_map: list[list[list[int]]] = [[[] for _ in range(j)] for _ in range(n)]
-        for r, path in enumerate(alignments):
-            for i_p, i_ref in path:
-                p_ref_map[i_p][r].append(i_ref)
+    for ref in others:
+        path = _dtw_path(emb_p, ref)
+        ref_map: dict[int, list[int]] = {}
+        for i_p, i_ref in path:
+            ref_map.setdefault(i_p, []).append(i_ref)
+        for i_p, i_refs in ref_map.items():
+            p_ref_steps[i_p].append(ref[i_refs].mean(axis=0))
 
-        memberships = []
-        for k in range(n):
-            # For each reference, average the embeddings of all matched steps
-            ref_embs_at_k = []
-            for r in range(j):
-                matched_indices = p_ref_map[k][r] if p_ref_map[k][r] else [0]
-                ref_embs_at_k.append(
-                    refs[r][matched_indices].mean(axis=0)
-                )
-            memberships.append(_soft_membership(emb_p[k], ref_embs_at_k))
+    memberships = []
+    for k in range(n):
+        if not p_ref_steps[k]:
+            continue
+        centroid = np.mean(np.stack(p_ref_steps[k]), axis=0)
+        memberships.append(_soft_membership(emb_p[k], [centroid]))
 
-        trial_scores.append(float(np.mean(memberships)))
-
-    return float(np.mean(trial_scores))
+    return float(np.mean(memberships)) if memberships else 0.0
 
 
 # ── Step 6: Majority-vote answer ──────────────────────────────────────────────
@@ -259,7 +244,7 @@ def _load_processed_ids(output_path: str) -> set:
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
-def pbd_dtw_uq() -> None:
+def pBD_uq() -> None:
     """Run DTW-pBD uncertainty quantification over the ensemble."""
     from sentence_transformers import SentenceTransformer
 
@@ -268,7 +253,7 @@ def pbd_dtw_uq() -> None:
     input_path = os.path.join(args.output_path, "ensemble_v1.json")
     confidences_dir = os.path.join(args.output_path, "confidences")
     os.makedirs(confidences_dir, exist_ok=True)
-    output_path = os.path.join(confidences_dir, "ensemble_v1_pbd_dtw.json")
+    output_path = os.path.join(confidences_dir, "ensemble_v1_pBD.json")
 
     if not os.path.exists(input_path):
         raise FileNotFoundError(f"Ensemble file not found: {input_path}")
@@ -283,8 +268,8 @@ def pbd_dtw_uq() -> None:
     with open(input_path, encoding="utf-8") as f_in:
         lines = [line.strip() for line in f_in if line.strip()]
 
-    log.info(f"Computing DTW-pBD UQ for {len(lines)} questions "
-             f"(j={J}, trials={N_TRIALS})")
+    log.info(f"Computing pBD UQ for {len(lines)} questions "
+             f"(centroid of all remaining chains)")
 
     with open(output_path, "a", encoding="utf-8") as f_out:
         for line in tqdm(lines, total=len(lines)):
@@ -310,7 +295,7 @@ def pbd_dtw_uq() -> None:
                 depths = []
                 for i, emb_p in enumerate(chains_emb):
                     others = [chains_emb[k] for k in range(len(chains_emb)) if k != i]
-                    depths.append(_pbd_score(emb_p, others, j=J, n_trials=N_TRIALS))
+                    depths.append(_pbd_score(emb_p, others))
 
                 confidence = float(np.mean(depths))
 
@@ -328,17 +313,17 @@ def pbd_dtw_uq() -> None:
 
 def compute_auroc() -> None:
     """
-    Compute AUROC for pBD-DTW and append the result to output/<dataset>/result.json.
+    Compute AUROC for pBD and append the result to output/<dataset>/result.json.
 
     Mirrors the pattern in analyze_result.py: join labels and confidences by
-    question text, then write results[model_engine]["pbd-dtw"] = auroc.
+    question text, then write results[model_engine]["pBD"] = auroc.
     Silently skips if the labels file does not yet exist.
     """
     import torch
     from torchmetrics import AUROC
 
     labels_path = os.path.join(args.output_path, "output_v1_w_labels.json")
-    conf_path = os.path.join(args.output_path, "confidences", "ensemble_v1_pbd_dtw.json")
+    conf_path = os.path.join(args.output_path, "confidences", "ensemble_v1_pBD.json")
 
     if not os.path.exists(labels_path):
         print(f"Labels file not found, skipping AUROC: {labels_path}")
@@ -368,7 +353,7 @@ def compute_auroc() -> None:
 
     auroc_fn = AUROC(task="binary")
     auroc_value = auroc_fn(torch.tensor(confidences), torch.tensor(targets))
-    print(f"AUROC (pbd-dtw, {args.dataset}): {auroc_value.item():.6f}  (n={len(confidences)})")
+    print(f"AUROC (pBD, {args.dataset}): {auroc_value.item():.6f}  (n={len(confidences)})")
 
     result_path = os.path.join("output", args.dataset, "result.json")
     os.makedirs(os.path.dirname(result_path), exist_ok=True)
@@ -377,7 +362,7 @@ def compute_auroc() -> None:
         with open(result_path, encoding="utf-8") as f:
             results = json.load(f)
 
-    results.setdefault(args.model_engine, {})["pbd-dtw"] = round(auroc_value.item(), 6)
+    results.setdefault(args.model_engine, {})["pBD"] = round(auroc_value.item(), 6)
 
     with open(result_path, "w", encoding="utf-8") as f:
         json.dump(results, f, indent=2, ensure_ascii=False)
@@ -387,7 +372,7 @@ if __name__ == "__main__":
     print_exp(args)
 
     if args.model_engine in ["llama3-1_8B", "llama2-13b"]:
-        pbd_dtw_uq()
+        pBD_uq()
         compute_auroc()
     else:
         raise ValueError(f"Unsupported model engine: {args.model_engine}")

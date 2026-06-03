@@ -23,7 +23,10 @@
       "Bash(python *)",
       "Bash(mv *)",
       "Bash(mkdir *)",
-      "Bash(pip show *)"
+      "Bash(pip show *)",
+      "Edit(**/*.md)",
+      "Edit(*.md)",
+      "Edit(.claude/docs/PROGRESS.md)"
     ]
   }
 }
