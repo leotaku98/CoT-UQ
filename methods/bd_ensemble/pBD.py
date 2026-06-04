@@ -29,6 +29,7 @@ from utils import parse_response_to_dict, setup_log, print_exp
 
 # ── Hyperparameters ────────────────────────────────────────────────────────────
 ENCODER_MODEL = "all-MiniLM-L6-v2"  # 384-d, fast, good for sentence similarity
+ALPHA = 0.5  # weight on process-level (pBD) vs outcome-level (majority vote)
 # ──────────────────────────────────────────────────────────────────────────────
 
 
@@ -291,13 +292,20 @@ def pBD_uq() -> None:
                 chains_text = [_parse_steps(s.get("llm response", "")) for s in samples]
                 chains_emb = _embed_chains(chains_text, encoder)
 
-                # Compute pBD for each chain; confidence = mean pBD
+                # Process-level: mean pBD across all chains
                 depths = []
                 for i, emb_p in enumerate(chains_emb):
                     others = [chains_emb[k] for k in range(len(chains_emb)) if k != i]
                     depths.append(_pbd_score(emb_p, others))
+                pbd_score = float(np.mean(depths))
 
-                confidence = float(np.mean(depths))
+                # Outcome-level: majority vote fraction
+                answers = [s.get("llm answer", "") for s in samples]
+                majority_count = Counter(answers).most_common(1)[0][1]
+                majority_frac = majority_count / len(samples)
+
+                # Combined confidence
+                confidence = ALPHA * pbd_score + (1 - ALPHA) * majority_frac
 
             result = {
                 "id": qid,

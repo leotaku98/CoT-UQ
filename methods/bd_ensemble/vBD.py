@@ -38,6 +38,7 @@ ENCODER_MODEL = "all-MiniLM-L6-v2"
 J = 2             # vertices sampled per hull (j=2 → betweenness centrality)
 N_TRIALS = 100    # trials per vertex for vBD estimation
 SIM_THRESHOLD = 0.85   # cosine similarity threshold for step clustering
+ALPHA = 0.5       # weight on process-level (vBD) vs outcome-level (majority vote)
 # ──────────────────────────────────────────────────────────────────────────────
 
 
@@ -322,7 +323,14 @@ def vBD_uq() -> None:
 
                     # Step 7-8: chain depth → confidence
                     chain_depths = [_chain_depth(seq, vbd) for seq in chain_vseqs]
-                    confidence = float(np.mean(chain_depths))
+                    vbd_score = float(np.mean(chain_depths))
+
+                    # Outcome-level: majority vote fraction
+                    answers = [s.get("llm answer", "") for s in samples]
+                    majority_count = Counter(answers).most_common(1)[0][1]
+                    majority_frac = majority_count / len(samples)
+
+                    confidence = ALPHA * vbd_score + (1 - ALPHA) * majority_frac
 
             result = {
                 "id": qid,

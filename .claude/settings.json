@@ -26,7 +26,8 @@
       "Bash(pip show *)",
       "Edit(**/*.md)",
       "Edit(*.md)",
-      "Edit(.claude/docs/PROGRESS.md)"
+      "Edit(.claude/docs/PROGRESS.md)",
+      "WebFetch(domain:github.com)"
     ]
   }
 }
