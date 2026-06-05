@@ -38,7 +38,7 @@ ENCODER_MODEL = "all-MiniLM-L6-v2"
 J = 2             # vertices sampled per hull (j=2 → betweenness centrality)
 N_TRIALS = 100    # trials per vertex for vBD estimation
 SIM_THRESHOLD = 0.85   # cosine similarity threshold for step clustering
-ALPHA = 0.5       # weight on process-level (vBD) vs outcome-level (majority vote)
+ALPHA = 0.6       # weight on process-level (vBD) vs outcome-level (majority vote)
 # ──────────────────────────────────────────────────────────────────────────────
 
 
