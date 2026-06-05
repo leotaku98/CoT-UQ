@@ -159,7 +159,7 @@ def pbd_confidence(samples: list[dict], encoder) -> float:
 
 ## 4. Three Approaches
 
-The pBD formulation in §2 uses DTW for step alignment, which is a **sequential** alignment: it treats the CoT chain as an ordered path and penalises any step that appears out of position relative to reference chains. An order-invariant extension is proposed in §4.2, which preserves the band depth framework while removing the ordering constraint. Which approach performs best on which dataset is an empirical question.
+The pBD formulation in §2 uses DTW for step alignment, which is a **sequential** alignment: it treats the CoT chain as an ordered path and penalises any step that appears out of position relative to reference chains. Two order-invariant extensions are proposed in §4.2 and §4.3, both preserving the band depth framework while removing the ordering constraint. Which approach performs best on which dataset is an empirical question.
 
 ### 4.1 pBD — Path Band Depth (DTW alignment)
 
@@ -272,17 +272,89 @@ def vbd_uncertainty(samples: list[dict], j: int = 2, n_trials: int = 100,
 
 ---
 
-### 4.3 Summary
+### 4.3 gBD — Graph Band Depth (Chain-Level, Order-Invariant)
 
-| | pBD (`methods/bd_ensemble/pBD.py`) | vBD (`methods/bd_ensemble/vBD.py`) |
-|---|---|---|
-| Alignment | Sequential DTW (monotonic) | None |
-| Depth computed at | Chain level (band of chains) | Vertex level, averaged over chain |
-| Order-sensitive | Yes | No |
-| Graph construction required | No | Yes (per question) |
-| Similarity threshold required | No | Yes (for clustering) |
-| Sensitive to step repetition | Yes | No (set, not multiset) |
-| gsm8k AUROC (llama3-1_8B) | 0.6285 | 0.6160 |
+**Core idea:** define the band at the **chain level** rather than the vertex level. For a pair of chains $(P_j, P_k)$, the geodesic band spans all vertices lying on any shortest path between *some* vertex in $P_j$ and *some* vertex in $P_k$. Chain $P_i$'s depth is the fraction of its vertices that fall inside this band, averaged over all chain pairs. This directly addresses vBD's sparsity problem: instead of the hull of 1 vertex pair, the band is the union of hulls over $|P_j| \times |P_k|$ cross-pairs.
+
+#### Geodesic band of two chains
+
+$$\text{band}(P_j, P_k) = \{v \in V : \exists\, u \in P_j,\; w \in P_k \text{ s.t. } d(u,v) + d(v,w) = d(u,w)\}$$
+
+The endpoints $P_j \cup P_k$ are always included. All vertices on any shortest path between a vertex from $P_j$ and a vertex from $P_k$ are added. This band is substantially denser than vBD's single-vertex hull — a chain of 5 steps paired with another of 5 steps produces up to 25 contributing vertex pairs.
+
+#### Chain band depth
+
+For chain $P_i$, score it against every valid pair $(P_j, P_k)$ with $j \neq i$ and $k \neq i$:
+
+$$\text{score}(P_i \mid P_j, P_k) = \frac{|P_i \cap \text{band}(P_j, P_k)|}{|P_i|}$$
+
+$$\text{gBD}(P_i) = \frac{1}{\binom{N-1}{2}} \sum_{\substack{j \neq i,\; k \neq i \\ j < k}} \text{score}(P_i \mid P_j, P_k)$$
+
+All $\binom{N}{2}$ chain-pair bands are precomputed once and reused across all $P_i$. No sampling — the computation is fully deterministic.
+
+#### Confidence score
+
+$$\text{confidence} = \alpha \cdot \overline{\text{gBD}} + (1-\alpha) \cdot \text{majority\_frac}, \quad \alpha = 0.4$$
+
+where $\overline{\text{gBD}} = \frac{1}{N}\sum_i \text{gBD}(P_i)$.
+
+#### Order invariance
+
+All chains are represented as vertex sets; $\text{band}(P_j, P_k)$ depends only on which vertices $P_j$ and $P_k$ contain, not the order in which they are visited. Chains $A\to B\to C\to D$ and $A\to C\to B\to D$ produce the same set $\{A,B,C,D\}$ and thus the same gBD score.
+
+#### Implementation sketch
+
+```python
+from itertools import combinations
+
+def _chain_band(P_j, P_k, all_vertices, spl):
+    band = set(P_j) | set(P_k)
+    for u in P_j:
+        u_spl = spl.get(u, {})
+        for w in P_k:
+            if w not in u_spl:
+                continue
+            d_uw = u_spl[w]
+            w_spl = spl.get(w, {})
+            for v in all_vertices:
+                if v in u_spl and v in w_spl and u_spl[v] + w_spl[v] == d_uw:
+                    band.add(v)
+    return band
+
+def gbd_scores(chain_sets, all_vertices, spl):
+    n = len(chain_sets)
+    # Precompute all C(N,2) bands once
+    band_cache = {(j, k): _chain_band(chain_sets[j], chain_sets[k], all_vertices, spl)
+                  for j, k in combinations(range(n), 2)}
+    scores = []
+    for i in range(n):
+        P_i = chain_sets[i]
+        trial_scores = [len(P_i & band_cache[(j, k)]) / len(P_i)
+                        for j, k in combinations(range(n), 2)
+                        if j != i and k != i]
+        scores.append(float(np.mean(trial_scores)))
+    return scores
+```
+
+See `methods/bd_ensemble/gBD.py` for the full implementation.
+
+---
+
+### 4.4 Summary
+
+| | pBD | vBD | gBD |
+|---|---|---|---|
+| **File** | `methods/bd_ensemble/pBD.py` | `methods/bd_ensemble/vBD.py` | `methods/bd_ensemble/gBD.py` |
+| **Alignment** | Sequential DTW (monotonic) | None | None |
+| **Band defined by** | Centroid of N−1 chains (per step) | Geodesic hull of 2 vertices | Geodesic band of 2 chains |
+| **Depth level** | Chain (step-wise cosine sim) | Vertex, averaged over chain | Chain (set containment in band) |
+| **Order-sensitive** | Yes | No | No |
+| **Graph required** | No | Yes | Yes |
+| **Similarity threshold** | No | Yes (clustering) | Yes (clustering) |
+| **Sampling** | Deterministic | Monte Carlo (100 trials) | Deterministic (all pairs) |
+| **gsm8k AUROC** | 0.698 | 0.682 | 0.687 |
+| **svamp AUROC** | 0.747 | 0.726 | 0.743 |
+| **hotpotQA AUROC** | 0.788 | 0.786 | **0.799** |
 
 Which approach yields the best AUROC is an empirical question — no assumptions are made here.
 
