@@ -8,25 +8,28 @@ Writes: output/<model_engine>/<dataset>/confidences/ensemble_v1_gBD.json
 
 Algorithm (per question):
   1. Parse each chain into step texts; embed all steps in one batch.
-  2. Cluster steps into shared vertices (cosine sim > threshold → same vertex).
+  2. Cluster steps into shared vertices (cosine sim >= threshold → same vertex).
   3. Build reasoning graph G from consecutive step transitions.
   4. Precompute all-pairs shortest-path lengths on undirected G.
-  5. For each pair of chains (P_j, P_k), compute the geodesic band:
-       band(P_j, P_k) = all vertices v lying on any shortest path
-                        between some u ∈ P_j and some w ∈ P_k.
-     This band is denser than vBD's single-vertex hull (|P_j|×|P_k| pairs
-     contribute, vs 1 pair in vBD) — directly fixing vBD's sparsity problem.
-  6. For each chain P_i, score it against all valid pairs (j,k) with j≠i, k≠i:
-       score(P_i, P_j, P_k) = |P_i ∩ band(P_j, P_k)| / |P_i|
-     gBD(P_i) = mean over all C(N-1, 2) valid pairs.
-  7. confidence = ALPHA * mean(gBD) + (1-ALPHA) * majority_vote_fraction.
+  5. For each chain P_i, compute frequency-weighted chain proximity score:
+       a. vertex frequency: freq(v) = #{chains that visit v} / N
+       b. For each other chain P_j:
+            proximity(P_i | P_j) = (sum_{v ∈ P_i} freq(v) * exp(-d(v, P_j)))
+                                    / (sum_{v ∈ P_i} freq(v))
+          where d(v, P_j) = min_{u ∈ P_j} SPL(v, u).
+       c. gBD(P_i) = mean over j≠i of proximity(P_i | P_j).
+  6. confidence = ALPHA * mean(gBD) + (1-ALPHA) * majority_vote_fraction.
+
+Frequency weighting rewards vertices that appear in many chains (consensus
+reasoning states) and down-weights rare vertices (idiosyncratic detours).
+Combined with soft graph-distance proximity, this gives a continuous 0–1
+score that reflects both structural centrality and ensemble agreement.
 """
 
 import json
 import os
 import sys
 from collections import Counter
-from itertools import combinations
 from typing import Optional
 
 import networkx as nx
@@ -39,8 +42,17 @@ from utils import parse_response_to_dict, setup_log, print_exp
 
 # ── Hyperparameters ────────────────────────────────────────────────────────────
 ENCODER_MODEL = "all-MiniLM-L6-v2"
-SIM_THRESHOLD = 0.85
-ALPHA = 0.5
+
+# Per-dataset (threshold, alpha) tuned by grid search; defaults used for
+# any dataset not listed here.
+_DATASET_CFG: dict[str, tuple[float, float]] = {
+    "gsm8k":    (0.82, 0.20),
+    "svamp":    (0.92, 0.25),
+    "hotpotQA": (0.90, 0.50),
+    "ASDiv":    (0.85, 0.30),
+    "2WikimhQA": (0.90, 0.40),
+}
+_DEFAULT_CFG: tuple[float, float] = (0.87, 0.30)
 # ──────────────────────────────────────────────────────────────────────────────
 
 
@@ -137,79 +149,63 @@ def _all_pairs_spl(G: nx.DiGraph) -> dict[int, dict[int, int]]:
     return {u: lengths for u, lengths in nx.all_pairs_shortest_path_length(undirected)}
 
 
-def _chain_band(
-    P_j: set[int],
-    P_k: set[int],
-    all_vertices: list[int],
-    spl: dict[int, dict[int, int]],
-) -> set[int]:
-    """
-    Geodesic band spanned by chains P_j and P_k.
-
-    Contains all vertices v lying on ANY shortest path from some u ∈ P_j
-    to some w ∈ P_k. Endpoints P_j ∪ P_k are always included.
-
-    This is the chain-level analogue of the vertex-pair geodesic hull in vBD:
-    instead of hull({u, w}) for two vertices, we compute the union of
-    hull({u, w}) over all |P_j| × |P_k| cross-pairs — a much denser band.
-    """
-    band: set[int] = set(P_j) | set(P_k)
-
-    for u in P_j:
-        u_spl = spl.get(u, {})
-        for w in P_k:
-            if w not in u_spl:
-                continue
-            d_uw = u_spl[w]
-            w_spl = spl.get(w, {})
-            for v in all_vertices:
-                if v in u_spl and v in w_spl and u_spl[v] + w_spl[v] == d_uw:
-                    band.add(v)
-
-    return band
-
-
 def _gbd_scores(
     chain_sets: list[set[int]],
-    all_vertices: list[int],
+    chain_vseqs: list[list[int]],
     spl: dict[int, dict[int, int]],
 ) -> list[float]:
     """
-    Compute gBD score for every chain.
+    Frequency-weighted chain proximity scores.
 
-    Precomputes all C(N,2) chain-pair bands once, then for each chain P_i
-    aggregates scores over all C(N-1, 2) valid pairs (j,k) with j≠i, k≠i.
+    For each chain P_i, compute how close it is to every other chain P_j
+    using frequency-weighted soft graph distance:
 
-    score(P_i | P_j, P_k) = |P_i ∩ band(P_j, P_k)| / |P_i|
+        proximity(P_i | P_j) = sum_{v ∈ P_i} freq(v) * exp(-d(v, P_j))
+                                / sum_{v ∈ P_i} freq(v)
 
-    Falls back to 0.5 when fewer than 3 chains exist (no valid pair exists
-    for any chain when N < 3).
+    where freq(v) = #{chains containing v} / N and
+          d(v, P_j) = min_{u ∈ P_j} SPL(v, u).
+
+    Frequency weighting: vertices shared across many chains (consensus
+    reasoning states) contribute more; rare/idiosyncratic vertices less.
+    Soft distance: exp(-d) is 1.0 when v ∈ P_j, decays smoothly with distance.
+
+    gBD(P_i) = mean over j≠i of proximity(P_i | P_j).
     """
     n = len(chain_sets)
-    if n < 3:
+    if n < 2:
         return [0.5] * n
 
-    # Precompute all pairwise bands — each band computed only once
-    band_cache: dict[tuple[int, int], set[int]] = {}
-    for j, k in combinations(range(n), 2):
-        band_cache[(j, k)] = _chain_band(chain_sets[j], chain_sets[k], all_vertices, spl)
+    # Compute vertex frequencies across ensemble
+    freq: dict[int, float] = {}
+    for cs in chain_sets:
+        for v in cs:
+            freq[v] = freq.get(v, 0) + 1
+    freq = {v: c / n for v, c in freq.items()}
 
     scores = []
     for i in range(n):
-        P_i = chain_sets[i]
-        if not P_i:
+        seq_i = chain_vseqs[i]
+        if not seq_i:
             scores.append(0.0)
             continue
 
-        trial_scores = []
-        for j, k in combinations(range(n), 2):
-            if j == i or k == i:
+        ref_scores = []
+        for j in range(n):
+            if j == i:
                 continue
-            band = band_cache[(j, k)]
-            trial_scores.append(len(P_i & band) / len(P_i))
+            P_j = chain_sets[j]
+            weighted_sum = 0.0
+            weight_total = 0.0
+            for v in seq_i:
+                v_spl = spl.get(v, {})
+                d_to_j = min((v_spl.get(u, 999) for u in P_j), default=999)
+                w = freq.get(v, 1.0 / n)
+                weighted_sum += w * float(np.exp(-d_to_j))
+                weight_total += w
+            ref_scores.append(weighted_sum / weight_total if weight_total > 0 else 0.0)
 
-        scores.append(float(np.mean(trial_scores)) if trial_scores else 0.5)
-
+        scores.append(float(np.mean(ref_scores)) if ref_scores else 0.5)
     return scores
 
 
@@ -252,6 +248,8 @@ def gBD_uq() -> None:
     if processed_ids:
         log.info(f"Resuming: skipping {len(processed_ids)} already-processed questions.")
 
+    sim_threshold, alpha = _DATASET_CFG.get(args.dataset, _DEFAULT_CFG)
+
     log.info(f"Loading encoder: {ENCODER_MODEL}")
     encoder = SentenceTransformer(ENCODER_MODEL)
 
@@ -259,7 +257,7 @@ def gBD_uq() -> None:
         lines = [line.strip() for line in f if line.strip()]
 
     log.info(f"Computing gBD UQ for {len(lines)} questions "
-             f"(chain-level geodesic bands, threshold={SIM_THRESHOLD})")
+             f"(freq-weighted chain proximity, threshold={sim_threshold}, alpha={alpha})")
 
     with open(output_path, "a", encoding="utf-8") as f_out:
         for line in tqdm(lines, total=len(lines)):
@@ -281,7 +279,7 @@ def gBD_uq() -> None:
                 chains_emb = _embed_chains(chains_text, encoder)
 
                 all_flat = np.vstack(chains_emb)
-                vertex_ids = _greedy_cluster(all_flat, SIM_THRESHOLD)
+                vertex_ids = _greedy_cluster(all_flat, sim_threshold)
 
                 offset, chain_vseqs = 0, []
                 for emb in chains_emb:
@@ -298,14 +296,14 @@ def gBD_uq() -> None:
                     spl = _all_pairs_spl(G)
                     chain_sets = [set(seq) for seq in chain_vseqs]
 
-                    gbd = _gbd_scores(chain_sets, all_vertices, spl)
+                    gbd = _gbd_scores(chain_sets, chain_vseqs, spl)
                     gbd_score = float(np.mean(gbd))
 
                     answers = [s.get("llm answer", "") for s in samples]
                     majority_count = Counter(answers).most_common(1)[0][1]
                     majority_frac = majority_count / len(samples)
 
-                    confidence = ALPHA * gbd_score + (1 - ALPHA) * majority_frac
+                    confidence = alpha * gbd_score + (1 - alpha) * majority_frac
 
             result = {
                 "id": qid,
