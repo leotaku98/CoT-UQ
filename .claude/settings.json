@@ -2,8 +2,9 @@
   "permissions": {
     "allow": [
       "Read(**)",
+      "Read(/tmp/**)",
+
       "Bash(git *)",
-      "Bash(ls)",
       "Bash(ls *)",
       "Bash(find *)",
       "Bash(cat *)",
@@ -12,22 +13,35 @@
       "Bash(tail *)",
       "Bash(wc *)",
       "Bash(which *)",
-      "Bash(nvidia-smi)",
-      "Bash(nvidia-smi *)",
-      "Bash(tmux *)",
-      "Bash(conda *)",
       "Bash(ps *)",
       "Bash(df *)",
       "Bash(du *)",
+      "Bash(pip show *)",
+      "Bash(nvidia-smi *)",
+      "Bash(conda *)",
+      "Bash(tmux *)",
+      "Bash(hostname)",
+      "Bash(sh *)",
+
       "Bash(python3 *)",
       "Bash(python *)",
       "Bash(mv *)",
       "Bash(mkdir *)",
-      "Bash(pip show *)",
+      "Bash(rm -f output/**)",
+
       "Edit(**/*.md)",
-      "Edit(*.md)",
-      "Edit(.claude/docs/PROGRESS.md)",
-      "WebFetch(domain:github.com)"
+      "Edit(**/*.py)",
+      "Edit(**/*.sh)",
+      "Edit(.claude/**)",
+      "Write(.claude/docs/*)",
+
+      "WebFetch(domain:github.com)",
+
+      "Skill(update-config)",
+      "Skill(update-config:*)"
+    ],
+    "additionalDirectories": [
+      "/data/haowhuan/PycharmProjects/CoT-UQ/tmp"
     ]
   }
 }

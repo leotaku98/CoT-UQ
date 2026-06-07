@@ -1,6 +1,6 @@
 # Pipeline Progress — llama3-1_8B
 
-Last updated: 2026-06-06 (gBD per-dataset tuning complete)
+Last updated: 2026-06-07 (venus20 — l2_math: llama2-13b gsm8k UQ self-probing-keystep 441/1300 34%)
 
 Legend: ✅ done · 🔄 running · ⏳ queued · ❌ not started
 
@@ -20,7 +20,7 @@ Legend: ✅ done · 🔄 running · ⏳ queued · ❌ not started
 | UQ: self-probing-allstep | ✅ | |
 | UQ: pBD | ✅ | AUROC: 0.693908 |
 | UQ: vBD | ✅ | AUROC: 0.674689 |
-| UQ: gBD | ✅ | AUROC: 0.690834 (thr=0.82, α=0.20; -0.003 vs pBD) |
+| UQ: gBD | ✅ | AUROC: 0.684670 (thr=0.92, α=0.30 universal; -0.009 vs pBD) |
 
 ---
 
@@ -38,7 +38,7 @@ Legend: ✅ done · 🔄 running · ⏳ queued · ❌ not started
 | UQ: self-probing-allstep | ✅ | 8340/8340 — AUROC: 0.5405 |
 | UQ: pBD | ✅ | AUROC: 0.788242 |
 | UQ: vBD | ✅ | AUROC: 0.783661 |
-| UQ: gBD | ✅ | AUROC: 0.798213 (thr=0.90, α=0.50; +0.010 vs pBD) |
+| UQ: gBD | ✅ | AUROC: 0.791654 (thr=0.92, α=0.30 universal; +0.003 vs pBD) |
 
 ---
 
@@ -56,7 +56,7 @@ Legend: ✅ done · 🔄 running · ⏳ queued · ❌ not started
 | UQ: self-probing-allstep | ✅ | 1000/1000 |
 | UQ: pBD | ✅ | AUROC: 0.742565 |
 | UQ: vBD | ✅ | AUROC: 0.707043 |
-| UQ: gBD | ✅ | AUROC: 0.753413 (thr=0.92, α=0.25; +0.011 vs pBD) |
+| UQ: gBD | ✅ | AUROC: 0.753051 (thr=0.92, α=0.30 universal; +0.011 vs pBD) |
 
 ---
 
@@ -67,14 +67,14 @@ Legend: ✅ done · 🔄 running · ⏳ queued · ❌ not started
 | Inference (`output_v1`) | ✅ | 2244/2249 (5 failed) |
 | Labels (`output_v1_w_labels`) | ✅ | 2244/2244 — completed Jun 6 (mars26, string matching) |
 | Ensemble (`ensemble_v1`) | ✅ | 2249/2249 — completed Jun 6 (mars26 GPU 1) |
-| UQ: self-probing-baseline | 🔄 | 272/2244 — running via `asdiv_uq` (mars26 GPU 0, ~4.3h left) |
-| UQ: self-probing-keyword | ⏳ | queued |
-| UQ: self-probing-allkeyword | ⏳ | queued |
-| UQ: self-probing-keystep | ⏳ | queued |
-| UQ: self-probing-allstep | ⏳ | queued |
-| UQ: entailment-prob | ⏳ | queued (nli_uq.py) |
-| UQ: non-contradiction | ⏳ | queued (nli_uq.py) |
-| UQ: semantic-entropy | ⏳ | queued (semantic_entropy.py) |
+| UQ: self-probing-baseline | ✅ | 2244/2244 — completed Jun 6 |
+| UQ: self-probing-keyword | ✅ | 2244/2244 — completed Jun 6 |
+| UQ: self-probing-allkeyword | ✅ | 2244/2244 |
+| UQ: self-probing-keystep | ✅ | 2244/2244 |
+| UQ: self-probing-allstep | ✅ | 2244/2244 — completed Jun 7 |
+| UQ: entailment-prob | ✅ | 2249/2249 — completed Jun 7 |
+| UQ: non-contradiction | ✅ | 2249/2249 — completed Jun 7 |
+| UQ: semantic-entropy | ✅ | 2249/2249 — completed Jun 7 |
 
 ## 2WikimhQA (1548 inference-type questions)
 
@@ -83,11 +83,14 @@ Legend: ✅ done · 🔄 running · ⏳ queued · ❌ not started
 | Inference (`output_v1`) | ✅ | 1547/1548 — completed Jun 5 (venus20, ~4h17m) |
 | Labels (`output_v1_w_labels`) | ✅ | 1547/1547 — completed Jun 5 (venus20, GPT-4o-mini) |
 | Ensemble (`ensemble_v1`) | ✅ | 1548/1548 — completed Jun 6 (venus20 GPU 0) |
-| UQ: self-probing-baseline | ❌ | |
-| UQ: self-probing-keyword | ❌ | |
-| UQ: self-probing-allkeyword | ❌ | |
-| UQ: self-probing-keystep | ❌ | |
-| UQ: self-probing-allstep | ❌ | |
+| UQ: self-probing-baseline | ✅ | 1547/1547 |
+| UQ: self-probing-keyword | ✅ | 1547/1547 |
+| UQ: self-probing-allkeyword | ✅ | 1547/1547 |
+| UQ: self-probing-keystep | ✅ | 1547/1547 |
+| UQ: self-probing-allstep | ✅ | 1547/1547 |
+| UQ: pBD | ✅ | 1548/1548 |
+| UQ: vBD | ✅ | 1548/1548 |
+| UQ: gBD | ✅ | 1548/1548 |
 
 ---
 
@@ -95,7 +98,8 @@ Legend: ✅ done · 🔄 running · ⏳ queued · ❌ not started
 
 | Session | Node | GPU | Job |
 |---|---|---|---|
-| `asdiv_uq` | mars26 | 0 | 🔄 ASDiv UQ: self-probing-baseline (272/2244, ~4.3h/variant × 5) |
+| ~~`asdiv_uq`~~ | mars26 | — | ✅ All ASDiv UQ complete — session ended |
+| `l2_math` | venus20 | 0+1 | 🔄 llama2-13b gsm8k UQ: self-probing-keystep (441/1300, 34%) |
 
 ### mars26 — current state & plan
 
@@ -103,22 +107,15 @@ Legend: ✅ done · 🔄 running · ⏳ queued · ❌ not started
 - ✅ `svamp_asdiv` — ASDiv inference 2244/2249 + ensemble 2249/2249 (Jun 6)
 - ✅ ASDiv labels — 2244/2244 (Jun 6, string matching)
 
-**Currently running:**
-- 🔄 `asdiv_uq` — ASDiv UQ: 5 self-probing variants + entailment-prob + non-contradiction + semantic-entropy + AUROC (GPU 0, ~3h total)
+**Currently running:** nothing — node idle.
 
-**Next:** done after asdiv_uq completes.
+**Completed (Jun 7):**
+- ✅ all 5 self-probing UQ variants (2244/2244 each)
+- ✅ entailment-prob, non-contradiction, semantic-entropy (2249/2249 each)
+
+**Next:** run analyze_result.py for ASDiv (labels exist, AUROC only).
 
 ---
-
-### venus25 — TERMINATED (2026-06-05)
-
-Node terminated. `wiki_pipeline` was killed with 0/1548 lines written — 2WikimhQA inference must be restarted from scratch.
-
-**Completed before termination:**
-- ✅ hotpotQA ensemble — 8447/8447 (Jun 3)
-- ✅ svamp UQ all 5 variants (Jun 2)
-- ✅ svamp ensemble 1000/1000 (Jun 2)
-- ✅ svamp labels (Jun 1)
 
 ### venus20 — current state & plan
 
@@ -127,12 +124,42 @@ Node terminated. `wiki_pipeline` was killed with 0/1548 lines written — 2Wikim
 - ✅ `wiki_labels` — 2WikimhQA labels 1547/1547 (Jun 5, GPT-4o-mini)
 - ✅ `wiki_ensemble` — 2WikimhQA ensemble 1548/1548 (Jun 6)
 
-**Currently running:** nothing (no active tmux sessions as of 2026-06-06)
+**Completed:**
+- ✅ `wiki_sp_uq` — 2WikimhQA all 5 self-probing variants 1547/1547 (Jun 7)
+- ✅ `wiki_pbd` — pBD 1548/1548
+- ✅ `wiki_vbd` — vBD 1548/1548
+- ✅ `wiki_gbd` — gBD 1548/1548
 
-**Next:** 2WikimhQA UQ (5 self-probing variants) + AUROC.
+**Completed:** all llama3-1_8B tasks on venus20.
+
+**Currently running:** `l2_math` — llama2-13b gsm8k self-probing-keystep UQ (441/1300, 34%). Inference ✅ (1300/1318, ~18 failed). Baseline UQ ✅. GPU 0+1 both in use (~12.7GB each).
 
 ---
 
 ## Notes
 
 - hotpotQA ensemble was previously killed on L4 (~50s/q); now running on A5500 (venus25) which has more memory/bandwidth
+
+---
+
+## Llama2-13B Plan (upcoming)
+
+Goal: replicate all llama3-1_8B experiments with `llama2-13b` (`meta-llama/Llama-2-13b-chat-hf`).
+
+**Model download:** ✅ complete — all 3 safetensors + tokenizer files cached at `/data/haowhuan/.cache/huggingface/hub/`
+
+**Code changes:** `model_init` uses `device_map="auto"` for llama2-13b (splits ~12.7GB across each A5500); pipeline uses `CUDA_VISIBLE_DEVICES='0,1'`.
+
+### Per-dataset pipeline (same steps as llama3-1_8B)
+
+| Dataset | Inference | Self-probing (5) | Ensemble | pBD | vBD | gBD | Labels | AUROC |
+|---|---|---|---|---|---|---|---|---|
+| gsm8k | ✅ 1300/1318 | 🔄 keystep 441/1300 (baseline ✅) | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ |
+| svamp | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ |
+| ASDiv | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ |
+| hotpotQA | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ |
+| 2WikimhQA | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ |
+
+**Running:** `l2_math` session (venus20) — inference + 5× self-probing for all 5 datasets sequentially.
+**Log:** `tmp/l2_math.log`
+**After:** ensemble (sampling_inference.py) + pBD/vBD/gBD + labels + AUROC for each dataset.

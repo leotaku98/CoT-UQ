@@ -42,17 +42,10 @@ from utils import parse_response_to_dict, setup_log, print_exp
 
 # ── Hyperparameters ────────────────────────────────────────────────────────────
 ENCODER_MODEL = "all-MiniLM-L6-v2"
-
-# Per-dataset (threshold, alpha) tuned by grid search; defaults used for
-# any dataset not listed here.
-_DATASET_CFG: dict[str, tuple[float, float]] = {
-    "gsm8k":    (0.82, 0.20),
-    "svamp":    (0.92, 0.25),
-    "hotpotQA": (0.90, 0.50),
-    "ASDiv":    (0.85, 0.30),
-    "2WikimhQA": (0.90, 0.40),
-}
-_DEFAULT_CFG: tuple[float, float] = (0.87, 0.30)
+# Universal config selected by joint grid search across gsm8k, svamp, hotpotQA:
+# maximises mean(AUROC - pBD_baseline) across all three datasets.
+SIM_THRESHOLD: float = 0.92
+ALPHA: float = 0.30
 # ──────────────────────────────────────────────────────────────────────────────
 
 
@@ -248,8 +241,6 @@ def gBD_uq() -> None:
     if processed_ids:
         log.info(f"Resuming: skipping {len(processed_ids)} already-processed questions.")
 
-    sim_threshold, alpha = _DATASET_CFG.get(args.dataset, _DEFAULT_CFG)
-
     log.info(f"Loading encoder: {ENCODER_MODEL}")
     encoder = SentenceTransformer(ENCODER_MODEL)
 
@@ -257,7 +248,7 @@ def gBD_uq() -> None:
         lines = [line.strip() for line in f if line.strip()]
 
     log.info(f"Computing gBD UQ for {len(lines)} questions "
-             f"(freq-weighted chain proximity, threshold={sim_threshold}, alpha={alpha})")
+             f"(freq-weighted chain proximity, threshold={SIM_THRESHOLD}, alpha={ALPHA})")
 
     with open(output_path, "a", encoding="utf-8") as f_out:
         for line in tqdm(lines, total=len(lines)):
@@ -279,7 +270,7 @@ def gBD_uq() -> None:
                 chains_emb = _embed_chains(chains_text, encoder)
 
                 all_flat = np.vstack(chains_emb)
-                vertex_ids = _greedy_cluster(all_flat, sim_threshold)
+                vertex_ids = _greedy_cluster(all_flat, SIM_THRESHOLD)
 
                 offset, chain_vseqs = 0, []
                 for emb in chains_emb:
@@ -303,7 +294,7 @@ def gBD_uq() -> None:
                     majority_count = Counter(answers).most_common(1)[0][1]
                     majority_frac = majority_count / len(samples)
 
-                    confidence = alpha * gbd_score + (1 - alpha) * majority_frac
+                    confidence = ALPHA * gbd_score + (1 - ALPHA) * majority_frac
 
             result = {
                 "id": qid,

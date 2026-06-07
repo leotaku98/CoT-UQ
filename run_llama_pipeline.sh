@@ -1,4 +1,5 @@
 export PYTHONPATH=./
+export HF_HOME=/data/haowhuan/.cache/huggingface
 MODEL_ENGINE=$1
 shift
 DATASETS=("$@")
@@ -15,13 +16,13 @@ for DATASET in "${DATASETS[@]}"; do
     echo " Output : ${OUTPUT_PATH}"
     echo "======================================================"
 
-    CUDA_VISIBLE_DEVICES='0' \
-    python inference_refining.py --dataset ${DATASET} --model_engine ${MODEL_ENGINE} \
+    CUDA_VISIBLE_DEVICES='0,1' \
+    /home/haowhuan/Data/miniconda3/envs/cotuq/bin/python inference_refining.py --dataset ${DATASET} --model_engine ${MODEL_ENGINE} \
         --temperature ${TEMP} --try_times ${TRY_TIMES}
 
     for UQ_ENGINE in self-probing-baseline self-probing-keyword self-probing-allkeyword self-probing-keystep self-probing-allstep; do
-        CUDA_VISIBLE_DEVICES='0' \
-        python stepuq.py --dataset ${DATASET} --model_engine ${MODEL_ENGINE} \
+        CUDA_VISIBLE_DEVICES='0,1' \
+        /home/haowhuan/Data/miniconda3/envs/cotuq/bin/python stepuq.py --dataset ${DATASET} --model_engine ${MODEL_ENGINE} \
             --uq_engine ${UQ_ENGINE} --temperature ${TEMP} --try_times 5
     done
 done

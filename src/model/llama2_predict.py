@@ -15,10 +15,17 @@ def model_init(args):
     model_name = HF_NAMES[args.model_engine]
     device = torch.device("cuda:0")
     if "llama" in args.model_engine:
-        model = LlamaForCausalLM.from_pretrained(
-            model_name,
-            torch_dtype=torch.bfloat16,
-        ).to(device)
+        if args.model_engine == 'llama2-13b':
+            model = LlamaForCausalLM.from_pretrained(
+                model_name,
+                torch_dtype=torch.bfloat16,
+                device_map="auto",
+            )
+        else:
+            model = LlamaForCausalLM.from_pretrained(
+                model_name,
+                torch_dtype=torch.bfloat16,
+            ).to(device)
         tokenizer = AutoTokenizer.from_pretrained(model_name)
     elif "mistral" in args.model_engine:
         model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.bfloat16).to(device)

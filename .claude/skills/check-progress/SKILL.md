@@ -43,7 +43,7 @@ This identifies which node you are on (e.g. `venus25`, `mars26`).
 
 ### 4. Update PROGRESS.md
 
-Edit `.claude/docs/PROGRESS.md` **without asking for permission** — pre-approved in `.claude/settings.json`.
+Edit `.claude/docs/PROGRESS.md`.
 
 **Only update rows and sections that belong to the current node. Never modify rows, sessions, or plan sections owned by other nodes.** Ownership is determined by:
 - The `Node` column in the Active tmux Sessions table
