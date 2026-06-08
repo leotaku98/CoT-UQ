@@ -16,7 +16,7 @@ scoring when fewer chains are available.
 
 Reads:  output/<model_engine>/<dataset>/ensemble_v1.json
 Writes: output/<model_engine>/<dataset>/confidences/ensemble_v1_gBD3.json
-        output/<dataset>/result.json  (key: "gBD3")
+        output/metric/<dataset>/result.json  (key: "gBD3")
 """
 
 import json
@@ -312,7 +312,7 @@ def gBD3_uq() -> None:
 
 
 def compute_auroc() -> None:
-    """Compute AUROC and write to output/<dataset>/result.json under 'gBD3'."""
+    """Compute AUROC and write to output/metric/<dataset>/result.json under 'gBD3'."""
     import torch
     from torchmetrics import AUROC
 
@@ -349,7 +349,7 @@ def compute_auroc() -> None:
     auroc_value = auroc_fn(torch.tensor(confidences), torch.tensor(targets))
     print(f"AUROC (gBD3, {args.dataset}): {auroc_value.item():.6f}  (n={len(confidences)})")
 
-    result_path = os.path.join("output", args.dataset, "result.json")
+    result_path = os.path.join("output", "metric", args.dataset + ".json")
     os.makedirs(os.path.dirname(result_path), exist_ok=True)
     results = {}
     if os.path.exists(result_path):

@@ -4,7 +4,7 @@ UQ via Graph Band Depth (gBD) — chain-level, order-invariant.
 
 Reads:  output/<model_engine>/<dataset>/ensemble_v1.json
 Writes: output/<model_engine>/<dataset>/confidences/ensemble_v1_gBD.json
-        output/<dataset>/result.json  (key: "gBD")
+        output/metric/<dataset>/result.json  (key: "gBD")
 
 Algorithm (per question):
   1. Parse each chain into step texts; embed all steps in one batch.
@@ -307,7 +307,7 @@ def gBD_uq() -> None:
 
 
 def compute_auroc() -> None:
-    """Compute AUROC and write to output/<dataset>/result.json under 'gBD'."""
+    """Compute AUROC and write to output/metric/<dataset>/result.json under 'gBD'."""
     import torch
     from torchmetrics import AUROC
 
@@ -344,7 +344,7 @@ def compute_auroc() -> None:
     auroc_value = auroc_fn(torch.tensor(confidences), torch.tensor(targets))
     print(f"AUROC (gBD, {args.dataset}): {auroc_value.item():.6f}  (n={len(confidences)})")
 
-    result_path = os.path.join("output", args.dataset, "result.json")
+    result_path = os.path.join("output", "metric", args.dataset + ".json")
     os.makedirs(os.path.dirname(result_path), exist_ok=True)
     results = {}
     if os.path.exists(result_path):

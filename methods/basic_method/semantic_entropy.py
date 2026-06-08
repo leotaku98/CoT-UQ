@@ -4,7 +4,7 @@ UQ via Discrete Semantic Entropy (Kuhn et al., 2023).
 
 Reads:  output/<model_engine>/<dataset>/ensemble_v1.json
 Writes: output/<model_engine>/<dataset>/confidences/ensemble_v1_semantic_entropy.json
-        output/<dataset>/result.json  (key: "semantic-entropy")
+        output/metric/<dataset>/result.json  (key: "semantic-entropy")
 
 Algorithm (per question):
   1. Collect the N sampled answers.
@@ -113,7 +113,7 @@ def _load_processed_ids(path: str) -> set:
 
 
 def _compute_auroc() -> None:
-    """Compute AUROC and write to output/<dataset>/result.json under 'semantic-entropy'."""
+    """Compute AUROC and write to output/metric/<dataset>/result.json under 'semantic-entropy'."""
     import torch
     from torchmetrics import AUROC
 
@@ -150,7 +150,7 @@ def _compute_auroc() -> None:
     auroc_value = auroc_fn(torch.tensor(confidences), torch.tensor(targets))
     print(f"AUROC (semantic-entropy, {args.dataset}): {auroc_value.item():.6f}  (n={len(confidences)})")
 
-    result_path = os.path.join("output", args.dataset, "result.json")
+    result_path = os.path.join("output", "metric", args.dataset + ".json")
     os.makedirs(os.path.dirname(result_path), exist_ok=True)
     results: dict = {}
     if os.path.exists(result_path):

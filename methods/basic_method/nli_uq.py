@@ -6,7 +6,7 @@ Reads:  output/<model_engine>/<dataset>/ensemble_v1.json
 Writes:
   output/<model_engine>/<dataset>/confidences/ensemble_v1_entailment.json
   output/<model_engine>/<dataset>/confidences/ensemble_v1_non_contradiction.json
-  output/<dataset>/result.json  (keys: "entailment-prob", "non-contradiction")
+  output/metric/<dataset>/result.json  (keys: "entailment-prob", "non-contradiction")
 
 Both metrics are computed from the same NLI forward pass over all ordered answer pairs.
 
@@ -63,7 +63,7 @@ def _load_processed_ids(path: str) -> set:
 
 
 def _compute_auroc(method_name: str, conf_filename: str) -> None:
-    """Compute AUROC and write to output/<dataset>/result.json."""
+    """Compute AUROC and write to output/metric/<dataset>/result.json."""
     import torch
     from torchmetrics import AUROC
 
@@ -100,7 +100,7 @@ def _compute_auroc(method_name: str, conf_filename: str) -> None:
     auroc_value = auroc_fn(torch.tensor(confidences), torch.tensor(targets))
     print(f"AUROC ({method_name}, {args.dataset}): {auroc_value.item():.6f}  (n={len(confidences)})")
 
-    result_path = os.path.join("output", args.dataset, "result.json")
+    result_path = os.path.join("output", "metric", args.dataset + ".json")
     os.makedirs(os.path.dirname(result_path), exist_ok=True)
     results: dict = {}
     if os.path.exists(result_path):

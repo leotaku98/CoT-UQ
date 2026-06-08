@@ -135,7 +135,7 @@ def compute_auroc():
 
     print(f"AUROC: {auroc_value}")
 
-    result_path = os.path.join("output", args.dataset, "result.json")
+    result_path = os.path.join("output", "metric", args.dataset + ".json")
     os.makedirs(os.path.dirname(result_path), exist_ok=True)
     if os.path.exists(result_path):
         with open(result_path, 'r', encoding='utf-8') as f:

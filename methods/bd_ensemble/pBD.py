@@ -321,7 +321,7 @@ def pBD_uq() -> None:
 
 def compute_auroc() -> None:
     """
-    Compute AUROC for pBD and append the result to output/<dataset>/result.json.
+    Compute AUROC for pBD and append the result to output/metric/<dataset>/result.json.
 
     Mirrors the pattern in analyze_result.py: join labels and confidences by
     question text, then write results[model_engine]["pBD"] = auroc.
@@ -363,7 +363,7 @@ def compute_auroc() -> None:
     auroc_value = auroc_fn(torch.tensor(confidences), torch.tensor(targets))
     print(f"AUROC (pBD, {args.dataset}): {auroc_value.item():.6f}  (n={len(confidences)})")
 
-    result_path = os.path.join("output", args.dataset, "result.json")
+    result_path = os.path.join("output", "metric", args.dataset + ".json")
     os.makedirs(os.path.dirname(result_path), exist_ok=True)
     results = {}
     if os.path.exists(result_path):
