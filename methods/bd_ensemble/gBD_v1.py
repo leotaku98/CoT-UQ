@@ -1,20 +1,40 @@
 # -*- coding: utf-8 -*-
 """
-UQ via Cross-Chain Vertex Band Depth on Reasoning Graphs (vBD_enhanced).
-
-Difference from vBD.py: when sampling vertex pairs (u, w) for geodesic hull
-computation, u and w are drawn from two DIFFERENT chains. This eliminates
-within-chain centrality bias — a vertex scores high only if it lies on a
-shortest path bridging vertices from different reasoning chains.
+UQ via Graph Band Depth (gBD) — anchored random simple-path band depth.
 
 Reads:  output/<model_engine>/<dataset>/ensemble_v1.json
-Writes: output/<model_engine>/<dataset>/confidences/ensemble_v1_vBD_enhanced.json
-        output/metric/<dataset>/result.json  (key: "vBD_enhanced")
+Writes: output/<model_engine>/<dataset>/confidences/ensemble_v1_gBD_v1.json
+        output/metric/<dataset>/result.json  (key: "gBD_v1")
+
+Algorithm (per question):
+  1. Parse each chain into step texts; embed all steps in one batch.
+  2. Cluster steps into shared vertices (cosine sim >= SIM_THRESHOLD → same vertex).
+  3. Build directed reasoning graph G from consecutive step transitions.
+     Add two special anchor nodes:
+       INPUT_VERTEX  (-1): connected → first step of every chain.
+       OUTPUT_VERTEX (-2): connected ← last step of every chain.
+     Add undirected similarity edges between distinct vertices whose centroid
+     cosine similarity ∈ [CROSS_SIM_THRESHOLD, SIM_THRESHOLD): "similar but
+     not identical" steps get a direct connection, reducing graph fragmentation.
+  4. Precompute all-pairs shortest-path lengths on undirected G.
+  5. For each chain P_i, estimate anchored band depth (N_TRIALS):
+       a. Sample two random simple paths P_a, P_b (INPUT → ... → OUTPUT):
+            use randomized DFS — shuffle neighbor order at each node so no
+            vertex is visited twice; stops when OUTPUT is reached.
+       b. Compute geodesic convex hull of {P_a, P_b}:
+            hull = { v : ∃ u ∈ P_a, w ∈ P_b s.t. d(u,v) + d(v,w) = d(u,w) }
+       c. Score = fraction of P_i's vertices that lie inside the hull.
+  6. BD(P_i) = mean score over N_TRIALS.
+  7. confidence = ALPHA * mean(BD) + (1-ALPHA) * majority_vote_fraction.
+
+Contrast with gBD_v2: gBD samples simple paths (no vertex revisits) while
+gBD_v2 samples random walks (vertices may be revisited).  Simple paths
+guarantee each intermediate step is unique, covering more graph structure per
+trial.
 """
 
 import json
 import os
-import random
 import sys
 from collections import Counter
 from typing import Optional
@@ -29,12 +49,14 @@ from utils import parse_response_to_dict, setup_log, print_exp
 
 # ── Hyperparameters ────────────────────────────────────────────────────────────
 ENCODER_MODEL = "all-MiniLM-L6-v2"
-J = 2
-N_TRIALS = 100
-SIM_THRESHOLD = 0.85
-ALPHA = 0.5
+SIM_THRESHOLD: float = 0.92    # cosine sim >= this → merge into same vertex
+CROSS_SIM_THRESHOLD: Optional[float] = 0.70  # cosine sim in [CROSS, SIM) → add soft edge
+N_TRIALS: int = 200
+ALPHA: float = 0.30
 # ──────────────────────────────────────────────────────────────────────────────
 
+INPUT_VERTEX: int = -1
+OUTPUT_VERTEX: int = -2
 
 _STEP_RE = __import__("re").compile(r"^Step\s+\d+\s*:\s*", __import__("re").IGNORECASE)
 
@@ -76,17 +98,21 @@ def _embed_chains(chains: list[list[str]], encoder) -> list[np.ndarray]:
     result, offset = [], 0
     for chain in chains:
         n = len(chain)
-        result.append(all_embs[offset:offset + n] if n else np.zeros((1, all_embs.shape[1]), dtype=np.float32))
+        result.append(
+            all_embs[offset:offset + n] if n else np.zeros((1, all_embs.shape[1]), dtype=np.float32)
+        )
         offset += n
     return result
 
 
-def _greedy_cluster(all_embs: np.ndarray, threshold: float) -> np.ndarray:
+def _greedy_cluster(
+    all_embs: np.ndarray, threshold: float
+) -> tuple[np.ndarray, np.ndarray]:
     """
-    Greedy clustering: assign each step to the closest existing centroid if
-    cosine similarity >= threshold, else open a new cluster.
+    Greedy clustering by cosine similarity.
 
-    Returns vertex_ids: int array of length len(all_embs).
+    Returns (vertex_ids, centroids) where centroids[k] is the mean embedding
+    of all steps assigned to vertex k.
     """
     vertex_ids = np.full(len(all_embs), -1, dtype=int)
     centroids: list[np.ndarray] = []
@@ -113,13 +139,48 @@ def _greedy_cluster(all_embs: np.ndarray, threshold: float) -> np.ndarray:
             centroids.append(emb.copy())
             counts.append(1)
 
-    return vertex_ids
+    return vertex_ids, np.stack(centroids) if centroids else np.zeros((0, all_embs.shape[1]))
+
+
+def _add_similarity_edges(
+    G: nx.DiGraph,
+    centroids: np.ndarray,
+    cross_threshold: float,
+    sim_threshold: float,
+) -> None:
+    """
+    Add undirected edges between distinct vertices whose centroid cosine
+    similarity falls in [cross_threshold, sim_threshold).
+    """
+    n = len(centroids)
+    if n < 2:
+        return
+    norms = np.linalg.norm(centroids, axis=1, keepdims=True)
+    normed = centroids / (norms + 1e-9)
+    sim_matrix = normed @ normed.T
+
+    for i in range(n):
+        for j in range(i + 1, n):
+            s = float(sim_matrix[i, j])
+            if cross_threshold <= s < sim_threshold:
+                G.add_edge(i, j)
+                G.add_edge(j, i)
 
 
 def _build_graph(chain_vertex_seqs: list[list[int]]) -> nx.DiGraph:
-    """Directed graph: edge u→v whenever consecutive in any chain."""
+    """
+    Directed graph with INPUT (-1) and OUTPUT (-2) anchor nodes.
+
+    INPUT  → first step of every chain
+    last step of every chain → OUTPUT
+    consecutive step transitions within each chain
+    """
     G = nx.DiGraph()
     for seq in chain_vertex_seqs:
+        if not seq:
+            continue
+        G.add_edge(INPUT_VERTEX, seq[0])
+        G.add_edge(seq[-1], OUTPUT_VERTEX)
         for u, v in zip(seq[:-1], seq[1:]):
             if u != v:
                 G.add_edge(u, v)
@@ -132,82 +193,110 @@ def _all_pairs_spl(G: nx.DiGraph) -> dict[int, dict[int, int]]:
     return {u: lengths for u, lengths in nx.all_pairs_shortest_path_length(undirected)}
 
 
-def _geodesic_hull_pair(
-    u: int,
-    w: int,
-    all_vertices: list[int],
+def _random_simple_path(
+    G_undirected: nx.Graph,
+    rng: np.random.Generator,
+) -> list[int]:
+    """
+    Sample a random simple path from INPUT_VERTEX to OUTPUT_VERTEX in O(V) time.
+
+    At each step, picks a random unvisited neighbor. If OUTPUT_VERTEX is
+    available as a neighbor, it is chosen immediately to guarantee termination.
+    If no valid neighbor exists, appends OUTPUT_VERTEX directly (fallback for
+    disconnected components). Runs in O(degree) per step → O(V) total.
+    """
+    path = [INPUT_VERTEX]
+    visited = {INPUT_VERTEX}
+    current = INPUT_VERTEX
+
+    while current != OUTPUT_VERTEX:
+        candidates = [n for n in G_undirected.neighbors(current) if n not in visited]
+        if not candidates:
+            path.append(OUTPUT_VERTEX)
+            break
+        if OUTPUT_VERTEX in candidates:
+            path.append(OUTPUT_VERTEX)
+            break
+        next_v = candidates[int(rng.integers(len(candidates)))]
+        path.append(next_v)
+        visited.add(next_v)
+        current = next_v
+
+    return path
+
+
+def _compute_hull(
+    path_a: list[int],
+    path_b: list[int],
     spl: dict[int, dict[int, int]],
+    all_vertices: list[int],
 ) -> set[int]:
     """
-    Geodesic-convex hull of {u, w}: all vertices v on ANY shortest path u→w.
+    Geodesic convex hull of path_a ∪ path_b.
 
-    v is on a shortest path iff d(u,v) + d(v,w) == d(u,w).
-    If u and w are disconnected, the hull is just {u, w}.
+    v is in the hull iff ∃ u ∈ path_a, w ∈ path_b: d(u,v) + d(v,w) = d(u,w).
     """
-    hull = {u, w}
-    u_spl = spl.get(u, {})
-    if w not in u_spl:
-        return hull
+    hull: set[int] = set()
+    set_a = set(path_a)
+    set_b = set(path_b)
 
-    d_uw = u_spl[w]
-    w_spl = spl.get(w, {})
-    for v in all_vertices:
-        if v in u_spl and v in w_spl:
-            if u_spl[v] + w_spl[v] == d_uw:
-                hull.add(v)
+    for u in set_a:
+        u_spl = spl.get(u, {})
+        for w in set_b:
+            d_uw = u_spl.get(w)
+            if d_uw is None:
+                continue
+            w_spl = spl.get(w, {})
+            for v in all_vertices:
+                if v in hull:
+                    continue
+                d_uv = u_spl.get(v)
+                d_vw = w_spl.get(v)
+                if d_uv is not None and d_vw is not None and d_uv + d_vw == d_uw:
+                    hull.add(v)
     return hull
 
 
-def _vertex_band_depths_cross_chain(
-    all_vertices: list[int],
+def _path_band_depths(
     chain_vseqs: list[list[int]],
     spl: dict[int, dict[int, int]],
-    n_trials: int = N_TRIALS,
-) -> dict[int, float]:
+    all_vertices: list[int],
+    G_undirected: nx.Graph,
+    n_trials: int,
+) -> list[float]:
     """
-    Estimate vBD(v) using cross-chain constrained sampling.
+    For each chain P_i, estimate anchored band depth via paired random simple paths.
 
-    Each trial picks two DIFFERENT chains, then one vertex from each chain.
-    The geodesic hull of that pair is computed and checked for v.
-    This ensures vBD scores reflect between-chain centrality only — a vertex
-    scores high only when it bridges different chains' reasoning trajectories,
-    not just because it sits in the middle of a single chain.
+    Precomputes all simple paths INPUT→OUTPUT once per question, then samples
+    pairs uniformly for each trial.  Each trial:
+      1. Sample two paths P_a, P_b uniformly from the enumerated set.
+      2. Compute geodesic hull of {P_a, P_b}.
+      3. Score = fraction of P_i's step vertices inside the hull.
+         (INPUT and OUTPUT anchors are excluded from P_i's vertex sequence.)
+    BD(P_i) = mean score over n_trials.
     """
-    if len(all_vertices) < J:
-        return {v: 1.0 for v in all_vertices}
+    rng = np.random.default_rng()
+    scores = []
 
-    if len(chain_vseqs) < 2:
-        # Degenerate: only one chain — fall back to within-chain sampling
-        vbd: dict[int, float] = {v: 0.0 for v in all_vertices}
+    for seq in chain_vseqs:
+        if not seq:
+            scores.append(0.0)
+            continue
+
+        step_verts = [v for v in seq if v != INPUT_VERTEX and v != OUTPUT_VERTEX]
+        trial_scores = []
         for _ in range(n_trials):
-            u, w = random.sample(all_vertices, J)
-            hull = _geodesic_hull_pair(u, w, all_vertices, spl)
-            for v in all_vertices:
-                if v in hull:
-                    vbd[v] += 1.0
-        return {v: vbd[v] / n_trials for v in all_vertices}
+            p_a = _random_simple_path(G_undirected, rng)
+            p_b = _random_simple_path(G_undirected, rng)
+            hull = _compute_hull(p_a, p_b, spl, all_vertices)
+            if step_verts:
+                frac = sum(1 for v in step_verts if v in hull) / len(step_verts)
+            else:
+                frac = 0.0
+            trial_scores.append(frac)
 
-    vbd = {v: 0.0 for v in all_vertices}
-
-    for _ in range(n_trials):
-        # Pick two distinct chains
-        ci, cj = random.sample(range(len(chain_vseqs)), 2)
-        # Pick one vertex from each chain
-        u = random.choice(chain_vseqs[ci])
-        w = random.choice(chain_vseqs[cj])
-        hull = _geodesic_hull_pair(u, w, all_vertices, spl)
-        for v in all_vertices:
-            if v in hull:
-                vbd[v] += 1.0
-
-    return {v: vbd[v] / n_trials for v in all_vertices}
-
-
-def _chain_depth(chain_verts: list[int], vbd: dict[int, float]) -> float:
-    """Mean vertex band depth over the vertices visited by the chain."""
-    if not chain_verts:
-        return 0.0
-    return float(np.mean([vbd.get(v, 0.0) for v in chain_verts]))
+        scores.append(float(np.mean(trial_scores)))
+    return scores
 
 
 def _majority_answer(samples: list[dict]) -> str:
@@ -231,8 +320,8 @@ def _load_processed_ids(path: str) -> set:
     return processed
 
 
-def vBD_enhanced_uq() -> None:
-    """Run cross-chain Vertex Band Depth UQ over the ensemble."""
+def gBD_v1_uq() -> None:
+    """Run Graph Band Depth (anchored simple-path) UQ over the ensemble."""
     from sentence_transformers import SentenceTransformer
 
     log = setup_log(args)
@@ -240,7 +329,7 @@ def vBD_enhanced_uq() -> None:
     input_path = os.path.join(args.output_path, "ensemble_v1.json")
     confidences_dir = os.path.join(args.output_path, "confidences")
     os.makedirs(confidences_dir, exist_ok=True)
-    output_path = os.path.join(confidences_dir, "ensemble_v1_vBD_enhanced.json")
+    output_path = os.path.join(confidences_dir, "ensemble_v1_gBD_v1.json")
 
     if not os.path.exists(input_path):
         raise FileNotFoundError(f"Ensemble file not found: {input_path}")
@@ -255,8 +344,11 @@ def vBD_enhanced_uq() -> None:
     with open(input_path, encoding="utf-8") as f:
         lines = [line.strip() for line in f if line.strip()]
 
-    log.info(f"Computing vBD_enhanced UQ for {len(lines)} questions "
-             f"(cross-chain sampling, j={J}, trials={N_TRIALS}, threshold={SIM_THRESHOLD})")
+    log.info(
+        f"Computing gBD UQ for {len(lines)} questions "
+        f"(anchored simple-path BD: INPUT→path→OUTPUT, trials={N_TRIALS}, "
+        f"cluster_thr={SIM_THRESHOLD}, cross_thr={CROSS_SIM_THRESHOLD}, alpha={ALPHA})"
+    )
 
     with open(output_path, "a", encoding="utf-8") as f_out:
         for line in tqdm(lines, total=len(lines)):
@@ -278,7 +370,7 @@ def vBD_enhanced_uq() -> None:
                 chains_emb = _embed_chains(chains_text, encoder)
 
                 all_flat = np.vstack(chains_emb)
-                vertex_ids = _greedy_cluster(all_flat, SIM_THRESHOLD)
+                vertex_ids, centroids = _greedy_cluster(all_flat, SIM_THRESHOLD)
 
                 offset, chain_vseqs = 0, []
                 for emb in chains_emb:
@@ -287,26 +379,27 @@ def vBD_enhanced_uq() -> None:
                     offset += n
 
                 G = _build_graph(chain_vseqs)
-                all_vertices = list(G.nodes())
+                if CROSS_SIM_THRESHOLD is not None:
+                    _add_similarity_edges(G, centroids, CROSS_SIM_THRESHOLD, SIM_THRESHOLD)
+                all_vertices = [v for v in G.nodes() if v not in (INPUT_VERTEX, OUTPUT_VERTEX)]
 
                 if len(all_vertices) < 2:
                     confidence = 1.0
                 else:
                     spl = _all_pairs_spl(G)
+                    G_undirected = G.to_undirected()
 
-                    # Cross-chain vertex band depths
-                    vbd = _vertex_band_depths_cross_chain(
-                        all_vertices, chain_vseqs, spl, n_trials=N_TRIALS
+                    bd = _path_band_depths(
+                        chain_vseqs, spl, all_vertices,
+                        G_undirected, N_TRIALS,
                     )
-
-                    chain_depths = [_chain_depth(seq, vbd) for seq in chain_vseqs]
-                    vbd_score = float(np.mean(chain_depths))
+                    bd_score = float(np.mean(bd))
 
                     answers = [s.get("llm answer", "") for s in samples]
                     majority_count = Counter(answers).most_common(1)[0][1]
                     majority_frac = majority_count / len(samples)
 
-                    confidence = ALPHA * vbd_score + (1 - ALPHA) * majority_frac
+                    confidence = ALPHA * bd_score + (1 - ALPHA) * majority_frac
 
             result = {
                 "id": qid,
@@ -319,12 +412,12 @@ def vBD_enhanced_uq() -> None:
 
 
 def compute_auroc() -> None:
-    """Compute AUROC and write to output/metric/<dataset>/result.json under 'vBD_enhanced'."""
+    """Compute AUROC and write to output/metric/<dataset>.json under 'gBD'."""
     import torch
     from torchmetrics import AUROC
 
     labels_path = os.path.join(args.output_path, "output_v1_w_labels.json")
-    conf_path = os.path.join(args.output_path, "confidences", "ensemble_v1_vBD_enhanced.json")
+    conf_path = os.path.join(args.output_path, "confidences", "ensemble_v1_gBD_v1.json")
 
     if not os.path.exists(labels_path):
         print(f"Labels file not found, skipping AUROC: {labels_path}")
@@ -354,7 +447,7 @@ def compute_auroc() -> None:
 
     auroc_fn = AUROC(task="binary")
     auroc_value = auroc_fn(torch.tensor(confidences), torch.tensor(targets))
-    print(f"AUROC (vBD_enhanced, {args.dataset}): {auroc_value.item():.6f}  (n={len(confidences)})")
+    print(f"AUROC (gBD, {args.dataset}): {auroc_value.item():.6f}  (n={len(confidences)})")
 
     result_path = os.path.join("output", "metric", args.dataset + ".json")
     os.makedirs(os.path.dirname(result_path), exist_ok=True)
@@ -363,7 +456,7 @@ def compute_auroc() -> None:
         with open(result_path, encoding="utf-8") as f:
             results = json.load(f)
 
-    results.setdefault(args.model_engine, {})["vBD_enhanced"] = round(auroc_value.item(), 6)
+    results.setdefault(args.model_engine, {})["gBD_v1"] = round(auroc_value.item(), 6)
 
     with open(result_path, "w", encoding="utf-8") as f:
         json.dump(results, f, indent=2, ensure_ascii=False)
@@ -373,7 +466,7 @@ if __name__ == "__main__":
     print_exp(args)
 
     if args.model_engine in ["llama3-1_8B", "llama2-13b"]:
-        vBD_enhanced_uq()
+        gBD_v1_uq()
         compute_auroc()
     else:
         raise ValueError(f"Unsupported model engine: {args.model_engine}")

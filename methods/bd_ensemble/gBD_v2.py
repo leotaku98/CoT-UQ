@@ -1,29 +1,38 @@
 # -*- coding: utf-8 -*-
 """
-UQ via Graph Band Depth (gBD) — chain-level, order-invariant.
+UQ via Graph Band Depth v2 (gBD_v2) — anchored random-walk path band depth.
 
 Reads:  output/<model_engine>/<dataset>/ensemble_v1.json
-Writes: output/<model_engine>/<dataset>/confidences/ensemble_v1_gBD.json
-        output/metric/<dataset>/result.json  (key: "gBD")
+Writes: output/<model_engine>/<dataset>/confidences/ensemble_v1_gBD_v2.json
+        output/metric/<dataset>/result.json  (key: "gBD_v2")
 
 Algorithm (per question):
   1. Parse each chain into step texts; embed all steps in one batch.
   2. Cluster steps into shared vertices (cosine sim >= threshold → same vertex).
-  3. Build reasoning graph G from consecutive step transitions.
+  3. Build directed reasoning graph G from consecutive step transitions.
+     Add two special anchor nodes:
+       INPUT_VERTEX  (-1): connected → first step of every chain.
+       OUTPUT_VERTEX (-2): connected ← last step of every chain.
+     Add undirected similarity edges between distinct vertices whose centroid
+     cosine similarity ∈ [CROSS_SIM_THRESHOLD, SIM_THRESHOLD): "similar but
+     not identical" steps get a direct connection, reducing graph fragmentation.
   4. Precompute all-pairs shortest-path lengths on undirected G.
-  5. For each chain P_i, compute frequency-weighted chain proximity score:
-       a. vertex frequency: freq(v) = #{chains that visit v} / N
-       b. For each other chain P_j:
-            proximity(P_i | P_j) = (sum_{v ∈ P_i} freq(v) * exp(-d(v, P_j)))
-                                    / (sum_{v ∈ P_i} freq(v))
-          where d(v, P_j) = min_{u ∈ P_j} SPL(v, u).
-       c. gBD(P_i) = mean over j≠i of proximity(P_i | P_j).
-  6. confidence = ALPHA * mean(gBD) + (1-ALPHA) * majority_vote_fraction.
+  5. For each chain P_i, estimate anchored path band depth (N_TRIALS):
+       a. Sample two anchored random walks P_a, P_b:
+            start = INPUT_VERTEX; follow random edges for walk_length steps;
+            stop early if OUTPUT_VERTEX is reached; append OUTPUT_VERTEX if not.
+       b. Compute geodesic convex hull of {P_a, P_b}:
+            hull = { v : ∃ u ∈ P_a, w ∈ P_b s.t. d(u,v) + d(v,w) = d(u,w) }
+       c. Score = fraction of P_i's vertices that lie inside the hull.
+  6. BD(P_i) = mean score over N_TRIALS.
+  7. confidence = ALPHA * mean(BD) + (1-ALPHA) * majority_vote_fraction.
 
-Frequency weighting rewards vertices that appear in many chains (consensus
-reasoning states) and down-weights rare vertices (idiosyncratic detours).
-Combined with soft graph-distance proximity, this gives a continuous 0–1
-score that reflects both structural centrality and ensemble agreement.
+Anchoring interpretation: each random walk is a plausible hypothetical reasoning
+path for the same question (starts at INPUT) that produces some answer (ends at
+OUTPUT). The band between two such paths captures the space of plausible
+reasoning between them. A chain with high band depth lies "centrally" between
+many pairs of hypothetical reasoning paths — i.e., its reasoning is consistent
+with what the graph considers reachable from this specific question.
 """
 
 import json
@@ -42,12 +51,14 @@ from utils import parse_response_to_dict, setup_log, print_exp
 
 # ── Hyperparameters ────────────────────────────────────────────────────────────
 ENCODER_MODEL = "all-MiniLM-L6-v2"
-# Universal config selected by joint grid search across gsm8k, svamp, hotpotQA:
-# maximises mean(AUROC - pBD_baseline) across all three datasets.
-SIM_THRESHOLD: float = 0.92
+SIM_THRESHOLD: float = 0.92    # cosine sim >= this → merge into same vertex
+CROSS_SIM_THRESHOLD: Optional[float] = 0.70  # cosine sim in [CROSS, SIM) → add soft edge
+N_TRIALS: int = 200
 ALPHA: float = 0.30
 # ──────────────────────────────────────────────────────────────────────────────
 
+INPUT_VERTEX: int = -1
+OUTPUT_VERTEX: int = -2
 
 _STEP_RE = __import__("re").compile(r"^Step\s+\d+\s*:\s*", __import__("re").IGNORECASE)
 
@@ -96,8 +107,15 @@ def _embed_chains(chains: list[list[str]], encoder) -> list[np.ndarray]:
     return result
 
 
-def _greedy_cluster(all_embs: np.ndarray, threshold: float) -> np.ndarray:
-    """Greedy clustering by cosine similarity; returns integer vertex_ids array."""
+def _greedy_cluster(
+    all_embs: np.ndarray, threshold: float
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Greedy clustering by cosine similarity.
+
+    Returns (vertex_ids, centroids) where centroids[k] is the mean embedding
+    of all steps assigned to vertex k.
+    """
     vertex_ids = np.full(len(all_embs), -1, dtype=int)
     centroids: list[np.ndarray] = []
     counts: list[int] = []
@@ -123,13 +141,53 @@ def _greedy_cluster(all_embs: np.ndarray, threshold: float) -> np.ndarray:
             centroids.append(emb.copy())
             counts.append(1)
 
-    return vertex_ids
+    return vertex_ids, np.stack(centroids) if centroids else np.zeros((0, all_embs.shape[1]))
+
+
+def _add_similarity_edges(
+    G: nx.DiGraph,
+    centroids: np.ndarray,
+    cross_threshold: float,
+    sim_threshold: float,
+) -> None:
+    """
+    Add undirected edges between distinct vertices whose centroid cosine
+    similarity falls in [cross_threshold, sim_threshold).
+
+    These "soft" edges connect semantically related but non-identical reasoning
+    steps, making the graph less fragmented and allowing random walks to
+    traverse conceptually nearby steps even if they never co-occurred in the
+    same chain transition.
+    """
+    n = len(centroids)
+    if n < 2:
+        return
+    norms = np.linalg.norm(centroids, axis=1, keepdims=True)
+    normed = centroids / (norms + 1e-9)
+    sim_matrix = normed @ normed.T  # (n, n)
+
+    for i in range(n):
+        for j in range(i + 1, n):
+            s = float(sim_matrix[i, j])
+            if cross_threshold <= s < sim_threshold:
+                G.add_edge(i, j)
+                G.add_edge(j, i)
 
 
 def _build_graph(chain_vertex_seqs: list[list[int]]) -> nx.DiGraph:
-    """Directed graph: edge u→v whenever consecutive in any chain."""
+    """
+    Directed graph with INPUT (-1) and OUTPUT (-2) anchor nodes.
+
+    INPUT  → first step of every chain
+    last step of every chain → OUTPUT
+    consecutive step transitions within each chain
+    """
     G = nx.DiGraph()
     for seq in chain_vertex_seqs:
+        if not seq:
+            continue
+        G.add_edge(INPUT_VERTEX, seq[0])
+        G.add_edge(seq[-1], OUTPUT_VERTEX)
         for u, v in zip(seq[:-1], seq[1:]):
             if u != v:
                 G.add_edge(u, v)
@@ -142,63 +200,106 @@ def _all_pairs_spl(G: nx.DiGraph) -> dict[int, dict[int, int]]:
     return {u: lengths for u, lengths in nx.all_pairs_shortest_path_length(undirected)}
 
 
-def _gbd_scores(
-    chain_sets: list[set[int]],
+def _anchored_walk(
+    G_undirected: nx.Graph,
+    walk_length: int,
+    rng: np.random.Generator,
+) -> list[int]:
+    """
+    Random walk starting at INPUT_VERTEX, ending at OUTPUT_VERTEX.
+
+    Follows random edges for up to walk_length steps from INPUT_VERTEX.
+    Stops early if OUTPUT_VERTEX is reached naturally. If OUTPUT_VERTEX
+    is not reached within walk_length steps, appends it explicitly —
+    every reasoning path must eventually produce an answer.
+    """
+    path = [INPUT_VERTEX]
+    current = INPUT_VERTEX
+    for _ in range(walk_length):
+        if current == OUTPUT_VERTEX:
+            break
+        neighbors = list(G_undirected.neighbors(current))
+        if not neighbors:
+            break
+        current = int(rng.choice(neighbors))
+        path.append(current)
+    if path[-1] != OUTPUT_VERTEX:
+        path.append(OUTPUT_VERTEX)
+    return path
+
+
+def _compute_hull(
+    path_a: list[int],
+    path_b: list[int],
+    spl: dict[int, dict[int, int]],
+    all_vertices: list[int],
+) -> set[int]:
+    """
+    Geodesic convex hull of path_a ∪ path_b.
+
+    v is in the hull iff ∃ u ∈ path_a, w ∈ path_b: d(u,v) + d(v,w) = d(u,w).
+    """
+    hull: set[int] = set()
+    set_a = set(path_a)
+    set_b = set(path_b)
+
+    for u in set_a:
+        u_spl = spl.get(u, {})
+        for w in set_b:
+            d_uw = u_spl.get(w)
+            if d_uw is None:
+                continue
+            w_spl = spl.get(w, {})
+            for v in all_vertices:
+                if v in hull:
+                    continue
+                d_uv = u_spl.get(v)
+                d_vw = w_spl.get(v)
+                if d_uv is not None and d_vw is not None and d_uv + d_vw == d_uw:
+                    hull.add(v)
+    return hull
+
+
+def _path_band_depths(
     chain_vseqs: list[list[int]],
     spl: dict[int, dict[int, int]],
+    all_vertices: list[int],
+    G_undirected: nx.Graph,
+    n_trials: int,
+    walk_length: int,
 ) -> list[float]:
     """
-    Frequency-weighted chain proximity scores.
+    For each chain P_i, estimate anchored band depth via paired random walks.
 
-    For each chain P_i, compute how close it is to every other chain P_j
-    using frequency-weighted soft graph distance:
-
-        proximity(P_i | P_j) = sum_{v ∈ P_i} freq(v) * exp(-d(v, P_j))
-                                / sum_{v ∈ P_i} freq(v)
-
-    where freq(v) = #{chains containing v} / N and
-          d(v, P_j) = min_{u ∈ P_j} SPL(v, u).
-
-    Frequency weighting: vertices shared across many chains (consensus
-    reasoning states) contribute more; rare/idiosyncratic vertices less.
-    Soft distance: exp(-d) is 1.0 when v ∈ P_j, decays smoothly with distance.
-
-    gBD(P_i) = mean over j≠i of proximity(P_i | P_j).
+    Each trial:
+      1. Generate two anchored walks P_a, P_b (INPUT → ... → OUTPUT).
+      2. Compute geodesic hull of {P_a, P_b}.
+      3. Score = fraction of P_i's step vertices inside the hull.
+         (INPUT and OUTPUT anchors are excluded from P_i's vertex sequence.)
+    BD(P_i) = mean score over n_trials.
     """
-    n = len(chain_sets)
-    if n < 2:
-        return [0.5] * n
-
-    # Compute vertex frequencies across ensemble
-    freq: dict[int, float] = {}
-    for cs in chain_sets:
-        for v in cs:
-            freq[v] = freq.get(v, 0) + 1
-    freq = {v: c / n for v, c in freq.items()}
-
+    rng = np.random.default_rng()
     scores = []
-    for i in range(n):
-        seq_i = chain_vseqs[i]
-        if not seq_i:
+
+    for seq in chain_vseqs:
+        if not seq:
             scores.append(0.0)
             continue
 
-        ref_scores = []
-        for j in range(n):
-            if j == i:
-                continue
-            P_j = chain_sets[j]
-            weighted_sum = 0.0
-            weight_total = 0.0
-            for v in seq_i:
-                v_spl = spl.get(v, {})
-                d_to_j = min((v_spl.get(u, 999) for u in P_j), default=999)
-                w = freq.get(v, 1.0 / n)
-                weighted_sum += w * float(np.exp(-d_to_j))
-                weight_total += w
-            ref_scores.append(weighted_sum / weight_total if weight_total > 0 else 0.0)
+        trial_scores = []
+        for _ in range(n_trials):
+            p_a = _anchored_walk(G_undirected, walk_length, rng)
+            p_b = _anchored_walk(G_undirected, walk_length, rng)
+            hull = _compute_hull(p_a, p_b, spl, all_vertices)
+            # Score only on reasoning step vertices (not INPUT/OUTPUT anchors)
+            step_verts = [v for v in seq if v != INPUT_VERTEX and v != OUTPUT_VERTEX]
+            if step_verts:
+                frac = sum(1 for v in step_verts if v in hull) / len(step_verts)
+            else:
+                frac = 0.0
+            trial_scores.append(frac)
 
-        scores.append(float(np.mean(ref_scores)) if ref_scores else 0.5)
+        scores.append(float(np.mean(trial_scores)))
     return scores
 
 
@@ -223,8 +324,8 @@ def _load_processed_ids(path: str) -> set:
     return processed
 
 
-def gBD_uq() -> None:
-    """Run Graph Band Depth UQ over the ensemble."""
+def gBD_v2_uq() -> None:
+    """Run Graph Band Depth v2 (anchored random walk) UQ over the ensemble."""
     from sentence_transformers import SentenceTransformer
 
     log = setup_log(args)
@@ -232,7 +333,7 @@ def gBD_uq() -> None:
     input_path = os.path.join(args.output_path, "ensemble_v1.json")
     confidences_dir = os.path.join(args.output_path, "confidences")
     os.makedirs(confidences_dir, exist_ok=True)
-    output_path = os.path.join(confidences_dir, "ensemble_v1_gBD.json")
+    output_path = os.path.join(confidences_dir, "ensemble_v1_gBD_v2.json")
 
     if not os.path.exists(input_path):
         raise FileNotFoundError(f"Ensemble file not found: {input_path}")
@@ -247,8 +348,11 @@ def gBD_uq() -> None:
     with open(input_path, encoding="utf-8") as f:
         lines = [line.strip() for line in f if line.strip()]
 
-    log.info(f"Computing gBD UQ for {len(lines)} questions "
-             f"(freq-weighted chain proximity, threshold={SIM_THRESHOLD}, alpha={ALPHA})")
+    log.info(
+        f"Computing gBD_v2 UQ for {len(lines)} questions "
+        f"(anchored path BD: INPUT→walk→OUTPUT, trials={N_TRIALS}, "
+        f"cluster_thr={SIM_THRESHOLD}, cross_thr={CROSS_SIM_THRESHOLD}, alpha={ALPHA})"
+    )
 
     with open(output_path, "a", encoding="utf-8") as f_out:
         for line in tqdm(lines, total=len(lines)):
@@ -270,7 +374,7 @@ def gBD_uq() -> None:
                 chains_emb = _embed_chains(chains_text, encoder)
 
                 all_flat = np.vstack(chains_emb)
-                vertex_ids = _greedy_cluster(all_flat, SIM_THRESHOLD)
+                vertex_ids, centroids = _greedy_cluster(all_flat, SIM_THRESHOLD)
 
                 offset, chain_vseqs = 0, []
                 for emb in chains_emb:
@@ -279,22 +383,30 @@ def gBD_uq() -> None:
                     offset += n
 
                 G = _build_graph(chain_vseqs)
-                all_vertices = list(G.nodes())
+                _add_similarity_edges(G, centroids, CROSS_SIM_THRESHOLD, SIM_THRESHOLD)
+                # all_vertices excludes INPUT/OUTPUT anchors (scored separately)
+                all_vertices = [v for v in G.nodes() if v not in (INPUT_VERTEX, OUTPUT_VERTEX)]
 
                 if len(all_vertices) < 2:
                     confidence = 1.0
                 else:
                     spl = _all_pairs_spl(G)
-                    chain_sets = [set(seq) for seq in chain_vseqs]
+                    G_undirected = G.to_undirected()
+                    walk_length = max(2, int(round(
+                        np.mean([len(seq) for seq in chain_vseqs if seq])
+                    )))
 
-                    gbd = _gbd_scores(chain_sets, chain_vseqs, spl)
-                    gbd_score = float(np.mean(gbd))
+                    bd = _path_band_depths(
+                        chain_vseqs, spl, all_vertices,
+                        G_undirected, N_TRIALS, walk_length,
+                    )
+                    bd_score = float(np.mean(bd))
 
                     answers = [s.get("llm answer", "") for s in samples]
                     majority_count = Counter(answers).most_common(1)[0][1]
                     majority_frac = majority_count / len(samples)
 
-                    confidence = ALPHA * gbd_score + (1 - ALPHA) * majority_frac
+                    confidence = ALPHA * bd_score + (1 - ALPHA) * majority_frac
 
             result = {
                 "id": qid,
@@ -307,12 +419,12 @@ def gBD_uq() -> None:
 
 
 def compute_auroc() -> None:
-    """Compute AUROC and write to output/metric/<dataset>/result.json under 'gBD'."""
+    """Compute AUROC and write to output/metric/<dataset>.json under 'gBD_v2'."""
     import torch
     from torchmetrics import AUROC
 
     labels_path = os.path.join(args.output_path, "output_v1_w_labels.json")
-    conf_path = os.path.join(args.output_path, "confidences", "ensemble_v1_gBD.json")
+    conf_path = os.path.join(args.output_path, "confidences", "ensemble_v1_gBD_v2.json")
 
     if not os.path.exists(labels_path):
         print(f"Labels file not found, skipping AUROC: {labels_path}")
@@ -342,7 +454,7 @@ def compute_auroc() -> None:
 
     auroc_fn = AUROC(task="binary")
     auroc_value = auroc_fn(torch.tensor(confidences), torch.tensor(targets))
-    print(f"AUROC (gBD, {args.dataset}): {auroc_value.item():.6f}  (n={len(confidences)})")
+    print(f"AUROC (gBD_v2, {args.dataset}): {auroc_value.item():.6f}  (n={len(confidences)})")
 
     result_path = os.path.join("output", "metric", args.dataset + ".json")
     os.makedirs(os.path.dirname(result_path), exist_ok=True)
@@ -351,7 +463,7 @@ def compute_auroc() -> None:
         with open(result_path, encoding="utf-8") as f:
             results = json.load(f)
 
-    results.setdefault(args.model_engine, {})["gBD"] = round(auroc_value.item(), 6)
+    results.setdefault(args.model_engine, {})["gBD_v2"] = round(auroc_value.item(), 6)
 
     with open(result_path, "w", encoding="utf-8") as f:
         json.dump(results, f, indent=2, ensure_ascii=False)
@@ -361,7 +473,7 @@ if __name__ == "__main__":
     print_exp(args)
 
     if args.model_engine in ["llama3-1_8B", "llama2-13b"]:
-        gBD_uq()
+        gBD_v2_uq()
         compute_auroc()
     else:
         raise ValueError(f"Unsupported model engine: {args.model_engine}")
