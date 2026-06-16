@@ -29,7 +29,7 @@ from utils import parse_response_to_dict, setup_log, print_exp
 
 # ── Hyperparameters ────────────────────────────────────────────────────────────
 ENCODER_MODEL = "all-MiniLM-L6-v2"  # 384-d, fast, good for sentence similarity
-ALPHA = 0.6  # weight on process-level (pBD) vs outcome-level (majority vote)
+ALPHA = 0.90  # weight on process-level (pBD) vs outcome-level (majority vote)
 # ──────────────────────────────────────────────────────────────────────────────
 
 

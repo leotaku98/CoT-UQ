@@ -3,7 +3,6 @@
     "allow": [
       "Read(**)",
       "Read(/tmp/**)",
-
       "Bash(git *)",
       "Bash(ls *)",
       "Bash(find *)",
@@ -22,23 +21,24 @@
       "Bash(tmux *)",
       "Bash(hostname)",
       "Bash(sh *)",
-
       "Bash(python3 *)",
       "Bash(python *)",
       "Bash(mv *)",
       "Bash(mkdir *)",
       "Bash(rm -f output/**)",
-
       "Edit(**/*.md)",
       "Edit(**/*.py)",
       "Edit(**/*.sh)",
       "Edit(.claude/**)",
       "Write(.claude/docs/*)",
-
       "WebFetch(domain:github.com)",
-
       "Skill(update-config)",
-      "Skill(update-config:*)"
+      "Skill(update-config:*)",
+      "Bash(export PYTHONPATH=./)",
+      "Bash(export HF_HOME=/data/haowhuan/.cache/huggingface)",
+      "Bash(export HF_HUB_OFFLINE=1)",
+      "Bash(/home/haowhuan/Data/miniconda3/envs/cotuq/bin/python3 methods/bd_ensemble/vBD.py --dataset gsm8k --model_engine llama2-13b)",
+      "Bash(/home/haowhuan/Data/miniconda3/envs/cotuq/bin/python3 methods/bd_ensemble/gBD_v2.py --dataset gsm8k --model_engine llama2-13b)"
     ],
     "additionalDirectories": [
       "/data/haowhuan/PycharmProjects/CoT-UQ/tmp"

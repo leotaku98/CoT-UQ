@@ -35,10 +35,10 @@ from utils import parse_response_to_dict, setup_log, print_exp
 
 # ── Hyperparameters ────────────────────────────────────────────────────────────
 ENCODER_MODEL = "all-MiniLM-L6-v2"
-J = 2             # vertices sampled per hull (j=2 → betweenness centrality)
-N_TRIALS = 100    # trials per vertex for vBD estimation
-SIM_THRESHOLD = 0.85   # cosine similarity threshold for step clustering
-ALPHA = 0.6       # weight on process-level (vBD) vs outcome-level (majority vote)
+J = 3             # vertices sampled per hull (j=2 → betweenness centrality)
+N_TRIALS = 200    # trials per vertex for vBD estimation
+SIM_THRESHOLD = 0.92   # cosine similarity threshold for step clustering
+ALPHA = 0.90      # weight on process-level (vBD) vs outcome-level (majority vote)
 # ──────────────────────────────────────────────────────────────────────────────
 
 
@@ -205,8 +205,11 @@ def _vertex_band_depths(
     vbd: dict[int, float] = {v: 0.0 for v in all_vertices}
 
     for _ in range(n_trials):
-        u, w = random.sample(all_vertices, J)
-        hull = _geodesic_hull_pair(u, w, all_vertices, spl)
+        sampled = random.sample(all_vertices, J)
+        hull: set[int] = set()
+        for i in range(len(sampled)):
+            for k in range(i + 1, len(sampled)):
+                hull |= _geodesic_hull_pair(sampled[i], sampled[k], all_vertices, spl)
         for v in all_vertices:
             if v in hull:
                 vbd[v] += 1.0

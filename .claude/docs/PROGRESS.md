@@ -1,6 +1,6 @@
 # Pipeline Progress
 
-Last updated: 2026-06-08 (venus20 — l2_math: llama2-13b svamp UQ self-probing-baseline 286/997 29%)
+Last updated: 2026-06-16 (venus25 — l2_asdiv_wiki_ensemble running: ASDiv then 2WikimhQA)
 
 Legend: ✅ done · 🔄 running · ⏳ queued · — not applicable
 
@@ -14,7 +14,7 @@ Legend: ✅ done · 🔄 running · ⏳ queued · — not applicable
 | svamp | 1000 | ✅ 1000 | ✅ 1000 | ✅ | ✅ | ✅ 0.743 | ✅ 0.707 | ✅ 0.753 | ✅ |
 | ASDiv | 2249 | ✅ 2244 | ✅ 2249 | ✅ | ✅ (0.518) | ✅ 0.768 | ✅ 0.731 | ✅ 0.762 | ✅ |
 | hotpotQA | 8447 | ✅ 8340 | ✅ 8447 | ✅ | ✅ (0.549) | ✅ 0.788 | ✅ 0.784 | ✅ 0.792 | ✅ |
-| 2WikimhQA | 1548 | ✅ 1547 | ✅ 1548 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 2WikimhQA | 1548 | ✅ 1547 | ✅ 1548 | ✅ | ✅ | ✅ 0.679 | ✅ 0.702 | ✅ 0.706 | ✅ |
 
 
 ---
@@ -23,14 +23,13 @@ Legend: ✅ done · 🔄 running · ⏳ queued · — not applicable
 
 | Dataset | Inference | Self-probing (5) | Ensemble | pBD | vBD | gBD | Labels | AUROC |
 |---|---|---|---|---|---|---|---|---|
-| gsm8k | ✅ 1300/1318 | ✅ all 5 | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ |
-| svamp | ✅ 997/1000 | 🔄 baseline 286/997 (29%) | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ |
-| ASDiv | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ |
-| hotpotQA | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ |
-| 2WikimhQA | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ |
+| gsm8k | ✅ 1300/1318 | ✅ all 5 | ✅ 1318 | ✅ 0.723 | ✅ 0.695 | ✅ 0.731 | ✅ | ✅ SP-keystep 0.530 |
+| svamp | ✅ 997/1000 | ✅ all 5 | ✅ 1000 | ✅ 0.676 | ✅ 0.662 | ✅ 0.707 | ✅ | ✅ SP-keystep 0.512 |
+| ASDiv | ✅ 2244/2249 | ✅ all 5 | 🔄 running (l2_asdiv_wiki_ensemble, venus25) | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ |
+| hotpotQA | ✅ 7853/8447 | ✅ all 5 | 🔄 4/8447 | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ |
+| 2WikimhQA | ✅ 1517/1548 | ✅ all 5 | ⏳ queued after ASDiv (1055/1548 done) | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ |
 
-**Running:** `l2_math` (venus20, GPU 0+1) — inference + 5× self-probing for all datasets sequentially, then ensemble + BD methods.
-**Log:** `tmp/l2_math.log`
+**Status (2026-06-16):** venus25 running ASDiv ensemble → 2WikimhQA ensemble (auto-queued). venus20 running hotpotQA ensemble at 4/8447.
 
 ---
 
@@ -38,8 +37,11 @@ Legend: ✅ done · 🔄 running · ⏳ queued · — not applicable
 
 | Session | Node | GPU | Job |
 |---|---|---|---|
-| `l2_math` | venus20 | 0+1 | 🔄 llama2-13b svamp UQ: self-probing-baseline 286/997 (29%) |
-| `l2_ensemble` | mars26 | 0+1 | 🔄 llama2-13b ensemble: gsm8k (running) → svamp queued |
+| ~~`l2_hotpot`~~ | venus20 | 0+1 | ✅ hotpotQA inference 7853/8447 + all 5 SP done |
+| ~~`l2_ensemble`~~ | ~~mars26~~ dead | 0+1 | ✅ gsm8k 1318 + svamp 1000 ensemble done |
+| ~~`l2_wiki_ensemble`~~ | venus20 | 0+1 | ⚠️ 2WikimhQA ensemble stopped at 1055/1548 |
+| `l2_hotpot_ensemble` | venus20 | 0+1 | 🔄 hotpotQA ensemble 4/8447 (~80s/q) |
+| `l2_asdiv_wiki_ensemble` | venus25 | 0+1 | 🔄 ASDiv ensemble → 2WikimhQA (auto-queued) |
 
 ---
 

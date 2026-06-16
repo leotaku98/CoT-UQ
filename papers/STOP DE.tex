@@ -1,0 +1,1219 @@
+%%
+%% This is file `sample-sigconf.tex',
+%% generated with the docstrip utility.
+%%
+%% The original source files were:
+%%
+%% samples.dtx  (with options: `all,proceedings,bibtex,sigconf')
+%%
+%% IMPORTANT NOTICE:
+%%
+%% For the copyright see the source file.
+%%
+%% Any modified versions of this file must be renamed
+%% with new filenames distinct from sample-sigconf.tex.
+%%
+%% For distribution of the original source see the terms
+%% for copying and modification in the file samples.dtx.
+%%
+%% This generated file may be distributed as long as the
+%% original source files, as listed above, are part of the
+%% same distribution. (The sources need not necessarily be
+%% in the same archive or directory.)
+%%
+%%
+%% Commands for TeXCount
+%TC:macro \cite [option:text,text]
+%TC:macro \citep [option:text,text]
+%TC:macro \citet [option:text,text]
+%TC:envir table 0 1
+%TC:envir table* 0 1
+%TC:envir tabular [ignore] word
+%TC:envir displaymath 0 word
+%TC:envir math 0 word
+%TC:envir comment 0 0
+%%
+%% The first command in your LaTeX source must be the \documentclass
+%% command.
+%%
+%% For submission and review of your manuscript please change the
+%% command to \documentclass[manuscript, screen, review]{acmart}.
+%%
+%% When submitting camera ready or to TAPS, please change the command
+%% to \documentclass[sigconf]{acmart} or whichever template is required
+%% for your publication.
+%%
+%%
+\documentclass[sigconf]{acmart}
+%%
+%% \BibTeX command to typeset BibTeX logo in the docs
+\AtBeginDocument{%
+  \providecommand\BibTeX{{%
+    Bib\TeX}}}
+
+%% Rights management information.  This information is sent to you
+%% when you complete the rights form.  These commands have SAMPLE
+%% values in them; it is your responsibility as an author to replace
+%% the commands and values with those provided to you when you
+%% complete the rights form.
+\setcopyright{acmlicensed}
+\copyrightyear{2018}
+\acmYear{2018}
+\acmDOI{XXXXXXX.XXXXXXX}
+%% These commands are for a PROCEEDINGS abstract or paper.
+\acmConference[Conference acronym 'XX]{Make sure to enter the correct
+  conference title from your rights confirmation email}{June 03--05,
+  2018}{Woodstock, NY}
+%%
+%%  Uncomment \acmBooktitle if the title of the proceedings is different
+%%  from ``Proceedings of ...''!
+%%
+%%\acmBooktitle{Woodstock '18: ACM Symposium on Neural Gaze Detection,
+%%  June 03--05, 2018, Woodstock, NY}
+\acmISBN{978-1-4503-XXXX-X/2018/06}
+
+
+%%
+%% Submission ID.
+%% Use this when submitting an article to a sponsored event. You'll
+%% receive a unique submission ID from the organizers
+%% of the event, and this ID should be used as the parameter to this command.
+%%\acmSubmissionID{123-A56-BU3}
+
+%%
+%% For managing citations, it is recommended to use bibliography
+%% files in BibTeX format.
+%%
+%% You can then either use BibTeX with the ACM-Reference-Format style,
+%% or BibLaTeX with the acmnumeric or acmauthoryear sytles, that include
+%% support for advanced citation of software artefact from the
+%% biblatex-software package, also separately available on CTAN.
+%%
+%% Look at the sample-*-biblatex.tex files for templates showcasing
+%% the biblatex styles.
+%%
+
+%%
+%% The majority of ACM publications use numbered citations and
+%% references.  The command \citestyle{authoryear} switches to the
+%% "author year" style.
+%%
+%% If you are preparing content for an event
+%% sponsored by ACM SIGGRAPH, you must use the "author year" style of
+%% citations and references.
+%% Uncommenting
+%% the next command will enable that style.
+%%\citestyle{acmauthoryear}
+
+
+%%
+%% end of the preamble, start of the body of the document source.
+\begin{document}
+
+%%
+%% The "title" command has an optional parameter,
+%% allowing the author to define a "short title" to be used in page headers.
+\title{Stability-Triggered Early Stopping of Diversity Regularization for Efficient Deep Ensemble Training}
+
+%%
+%% The "author" command and its associated commands are used to define
+%% the authors and their affiliations.
+%% Of note is the shared affiliation of the first two authors, and the
+%% "authornote" and "authornotemark" commands
+%% used to denote shared contribution to the research.
+\author{Anoymous}
+% \author{Haowei Huang}
+% \email{haowei.huang@student.uts.edu.au}
+% \orcid{0009-0009-6952-3954}
+% \author{Junyu Xuan}
+% \email{Junyu.Xuan@uts.edu.au}
+% \orcid{0000-0002-8367-6908}
+% \affiliation{%
+%   \institution{University of Technology Sydney}
+%   \city{Ultimo}
+%   \state{NSW}
+%   \country{Australia}
+% }
+
+
+
+
+%%
+%% The abstract is a short summary of the work to be presented in the
+%% article.
+\begin{abstract}
+Deep ensembles are a simple yet effective approach for improving predictive accuracy and uncertainty estimation in deep learning. Despite their effectiveness, substantial research has focused on further enhancing the robustness and uncertainty estimation of deep ensembles. A common strategy is to explicitly promote diversity among ensemble members through additional regularization terms applied throughout the entire training process. Although these diversity-encouraging techniques can improve robustness, they introduce significant computational overhead, making ensemble training more time-consuming.
+In this work, we study deep ensemble training through the lens of dynamical stability and build on the concept of the edge of stability (EoS) to characterize transitions in ensemble optimization dynamics. Before reaching EoS, deep ensembles exhibit dynamically unstable training behavior, during which diversity regularization plays a pivotal role; beyond EoS, its impact becomes substantially diminished. Based on this insight, we propose Stability-Triggered Optimization (STOP) for Deep Ensembles Regularization, a dynamical stability triggered early stopping strategy for ensemble regularization that applies diversity regularization only before the edge of stability and disables it thereafter. This approach significantly reduces training time while maintaining competitive predictive performance and uncertainty quality for deep ensembles regularization. The code is available at 
+\url{https://anonymous.4open.science/r/Deep_Ensemble_EOS-BDC6}.
+\end{abstract}
+
+%%
+%% The code below is generated by the tool at http://dl.acm.org/ccs.cfm.
+%% Please copy and paste the code instead of the example below.
+%%
+\begin{CCSXML}
+<ccs2012>
+   <concept>
+       <concept_id>10010147.10010178.10010199</concept_id>
+       <concept_desc>Computing methodologies~Planning and scheduling</concept_desc>
+       <concept_significance>500</concept_significance>
+       </concept>
+   <concept>
+       <concept_id>10010147.10010257.10010293.10010294</concept_id>
+       <concept_desc>Computing methodologies~Neural networks</concept_desc>
+       <concept_significance>500</concept_significance>
+       </concept>
+   <concept>
+       <concept_id>10010147.10010257.10010321.10010333</concept_id>
+       <concept_desc>Computing methodologies~Ensemble methods</concept_desc>
+       <concept_significance>500</concept_significance>
+       </concept>
+ </ccs2012>
+\end{CCSXML}
+
+\ccsdesc[500]{Computing methodologies~Planning and scheduling}
+\ccsdesc[500]{Computing methodologies~Neural networks}
+\ccsdesc[500]{Computing methodologies~Ensemble methods}
+
+%%
+%% Keywords. The author(s) should pick words that accurately describe
+%% the work being presented. Separate the keywords with commas.
+\keywords{Deep ensembles, Uncertainty quantification, Diversity regularization, Edge of stability, Neural networks}
+% %% A "teaser" image appears between the author and affiliation
+% %% information and the body of the document, and typically spans the
+% %% page.
+% \begin{teaserfigure}
+%   \includegraphics[width=\textwidth]{sampleteaser}
+%   \caption{Seattle Mariners at Spring Training, 2010.}
+%   \Description{Enjoying the baseball game from the third-base
+%   seats. Ichiro Suzuki preparing to bat.}
+%   \label{fig:teaser}
+% \end{teaserfigure}
+
+\received{20 February 2007}
+\received[revised]{12 March 2009}
+\received[accepted]{5 June 2009}
+
+%%
+%% This command processes the author and affiliation and title
+%% information and builds the first part of the formatted document.
+\maketitle
+
+\section{Introduction}
+
+\begin{figure}[!t]
+  \centering
+  \includegraphics[width=\linewidth]{resources/learning_trajectory_2d_comparison.png}\\[0.5em]
+  \includegraphics[width=\linewidth]{resources/learning_trajectory_3d_comparison.png}
+  \caption{
+  Visualization of optimization trajectories under phase-aware training.
+  (a) 2D projection of the optimization trajectory, highlighting ensemble separation during the exploration phase.
+  (b) 3D view of the trajectory, illustrating curvature growth and convergence near the edge-of-stability regime.
+  }
+  \Description{Two panels showing optimization trajectories of ensemble members. The top panel is a 2D projection where members diverge into separate paths during the pre-EoS phase. The bottom panel is a 3D view showing the loss surface curvature increasing as training progresses toward the edge-of-stability boundary.}
+  \label{fig:trajectory}
+\end{figure}
+
+Deep ensembles~\citep{lakshminarayanan2017simplescalablepredictiveuncertainty} are among the most effective and reliable methods for improving predictive performance and uncertainty estimation in deep learning. By training multiple models with different random initializations and aggregating their predictions, deep ensembles consistently outperform single models across a wide range of tasks, particularly in terms of calibration and robustness. A large body of prior work attributes this effectiveness to the ability of ensemble members to explore distinct regions of the loss landscape, thereby capturing multiple plausible solutions consistent with the data~\citep{fort2020deepensembleslosslandscape}.
+
+To further enhance this diversity, researchers commonly introduce explicit regularization techniques—such as repulsion~\citep{dangelo2021repulsive}, data augmentation~\citep{mehrtens2022sample}, or noise injection~\citep{rame2021dice}—applied throughout the entire optimization process. These approaches aim to encourage ensemble members to remain functionally diverse, thereby strengthening uncertainty estimation and robustness. Such practices implicitly assume that diversity regularization is equally important at all stages of training. Moreover, applying these techniques throughout training significantly increases computational overhead: each ensemble member must be trained independently with additional regularization, resulting in a substantial increase in training time and resource consumption.
+
+Rather than viewing optimization as a smooth and uniformly convergent process, \citet{cohen2021gradient} demonstrate that training dynamics evolve across distinct phases characterized by the curvature of the loss landscape.
+Specifically, they measure sharpness as the largest eigenvalue of the Hessian of the empirical loss with respect to model parameters.
+When trained with a sufficiently large learning rate $\eta$, this dominant curvature increases during training and eventually approaches the stability threshold $2/\eta$,
+after which it fluctuates within a narrow band around this boundary.
+This regime is referred to as the \emph{Edge of Stability} (EoS).
+In this work, we extend the notion of the edge of stability from single-model optimization to the training dynamics of deep ensembles. Through empirical analysis of ensemble trajectories, we show that ensemble training naturally decomposes into two phases. In the \emph{exploration phase}, prior to the EoS, ensemble members rapidly diversify and traverse distinct basins of attraction in the loss landscape. Regularization during this phase plays a critical role in preventing premature trajectory collapse and encouraging diversity across ensemble members. After reaching EoS, optimization enters an \emph{exploitation phase} in which each model primarily refines its solution within an already-selected basin, with limited additional benefit from continued regularization.
+
+Motivated by these insights, we propose STOP (Stability-Triggered Optimization) for deep ensemble regularization, a training strategy in which diversity regularization is applied only during the dynamically unstable phase and is disabled once the edge of stability is reached. Empirically, STOP substantially reduces training cost while preserving predictive accuracy and uncertainty quality. This behavior is illustrated in Figure~\ref{fig:trajectory}, which compares the optimization trajectories of three ensemble members under different training strategies. In the left subfigure, without explicit regularization, Model 1 and Model 2 converge to the same basin, resulting in reduced ensemble diversity. In the middle subfigure, when diversity regularization is applied throughout the entire training process, ensemble members are guided toward distinct basins, thereby improving diversity. In the right subfigure, STOP regularization is applied: diversity regularization is active only before reaching the EoS and is disabled afterward. Despite the early removal of regularization, ensemble members still converge to different basins. It can be seen that a model already enter a particular local basin prior to reaching EoS, suggesting that basin selection becomes effectively irreversible beyond this transition point.
+
+Our contributions can be summarized as follows:
+\begin{itemize}
+\item We extend the concept of the edge of stability (EoS) to deep ensemble optimization from a dynamical stability perspective and empirically identify a two-phase training dynamic.
+\item We show that ensemble diversity is largely established prior to the EoS, with diminishing returns from continued regularization in the dynamically stable phase.
+\item We introduce STOP, an EoS-aware regularization strategy that achieves performance comparable to standard deep ensembles at significantly reduced computational cost.
+\end{itemize}
+
+
+\section{Preliminary}
+\label{sec:preliminaries}
+
+\subsection{Deep ensembles}
+Let $\mathcal{X} \subseteq \mathbb{R}^d$ denote the input space and $\mathcal{Y} = \{1, 2, \dots, C\}$ the output space for a $C$-class classification problem.
+Given a training dataset
+\[
+\mathcal{D} = \{(\mathbf{x}_i, y_i)\}_{i=1}^n \subseteq \mathcal{X} \times \mathcal{Y},
+\]
+we consider learning an ensemble of neural networks to improve predictive performance and quantify model uncertainty.
+
+A deep ensemble consists of $M$ independently parameterized neural networks $\{ f_{\theta_m} \}_{m=1}^M$, where each model maps an input $\mathbf{x} \in \mathcal{X}$ to a vector of class logits $f_{\theta_m}(\mathbf{x}) \in \mathbb{R}^C$.
+The predictive distribution of the $m$-th ensemble member is defined via the softmax function,
+\[
+p_{\theta_m}(y \mid \mathbf{x}) = \mathrm{softmax}\!\left( f_{\theta_m}(\mathbf{x}) \right).
+\]
+The ensemble predictive distribution is obtained by uniform averaging over all members,
+\[
+p_{\mathrm{ens}}(y \mid \mathbf{x})
+= \frac{1}{M} \sum_{m=1}^M p_{\theta_m}(y \mid \mathbf{x}).
+\]
+
+
+Each ensemble member is trained independently by minimizing an empirical risk objective.
+In this work, we adopt the mean squared error (MSE) loss applied to class logits,
+\begin{equation}
+\mathcal{L}^{(m)}(\theta_m)
+=
+\frac{1}{n} \sum_{i=1}^n
+\ell\!\left( f_{\theta_m}(\mathbf{x}_i), y_i \right),
+\end{equation}
+where $\ell(\cdot,\cdot)$ denotes the MSE loss between the predicted logits and the one-hot encoding of the target label.
+
+\subsection{Diversity Regularization in deep ensembles}
+\label{subsec:regularization prelimnary}
+
+To promote functional diversity among ensemble members and mitigate overfitting, ensemble methods often introduce explicit regularization terms that couple the predictions or representations of different members.
+Accordingly, the training objective for the $k$-th ensemble member can be written as
+\begin{equation}
+\label{eq:reg_objective}
+\tilde{\mathcal{L}}^{(m)}(\theta_m)
+=
+\mathcal{L}^{(m)}(\theta_m)
++
+\alpha \, \mathcal{R}^{(m)}(\theta_1, \dots, \theta_M),
+\end{equation}
+where $\mathcal{R}^{(m)}$ denotes a regularization term that encourages ensemble diversity, and $\alpha > 0$ controls its strength.
+
+In this paper, we explicitly consider two representative diversity-promoting regularization techniques: Repulsive Deep Ensembles (Repul)~\citep{dangelo2021repulsive} and Diversity in Deep Ensembles via Conditional Redundancy Adversarial Estimation (DICE)~\citep{rame2021dice}.
+
+\paragraph{DICE}
+DICE promotes \emph{functional diversity} by penalizing correlation among the residual predictions of ensemble members.
+Given residual vectors
+$
+\mathbf{r}_m = \hat{\mathbf{y}}_m - \mathbf{y},
+$
+we first normalize each residual to obtain $\tilde{\mathbf{r}}_m$. The pairwise correlation matrix
+$
+C_{ij} = \frac{1}{D}\tilde{\mathbf{r}}_i^\top \tilde{\mathbf{r}}_j
+$
+measures similarity between members' prediction errors. The DICE penalty minimizes squared off-diagonal correlations:
+\[
+\mathcal{R}_{\text{dice}}
+=
+\frac{1}{M(M-1)}
+\sum_{i\neq j} C_{ij}^2.
+\]
+By discouraging correlated residual patterns, DICE encourages ensemble members to capture complementary predictive structure. The resulting objective becomes
+\[
+{\mathcal{L}}(\theta)
+=
+\mathcal{L}(\theta)
++
+\alpha \, \mathcal{R}_{\text{dice}}.
+\]
+The computational complexity of DICE per minibatch scales as
+$
+\mathcal{O}(M^2 N D),
+$
+where $M$ is the ensemble size, $N$ the batch size, and $D$ the output dimension.
+
+\paragraph{Repul}
+Repul promotes \emph{parametric diversity} by explicitly encouraging separation in weight space.
+Let $\mathbf{w}_m$ denote the flattened parameters of ensemble member $m$.
+An RBF kernel
+\[
+k(\mathbf{w}_i,\mathbf{w}_j)
+=
+\exp\!\left(-\gamma\|\mathbf{w}_i-\mathbf{w}_j\|_2^2\right)
+\]
+quantifies similarity between members. The repulsive direction is given by the normalized gradient of the kernel density,
+\[
+\mathcal{R}_{Repul}
+=
+\frac{
+\nabla_{\mathbf{w}_i}\sum_{j=1}^M k(\mathbf{w}_i,\mathbf{w}_j)
+}{
+\sum_{j=1}^M k(\mathbf{w}_i,\mathbf{w}_j)
+},
+\]
+which pushes each member away from regions of high parameter concentration.
+The gradient update becomes
+\[
+\nabla_{\mathbf{w}_i}\mathcal{L}
+\leftarrow
+\nabla_{\mathbf{w}_i}\mathcal{L}_{\text{base}}
++
+\alpha_{\text{rep}}\mathcal{R}_{Repul},
+\]
+thereby discouraging ensemble collapse to similar solutions. Repul incurs computational complexity of
+$
+\mathcal{O}(M^2 P)
+$
+, where $P$ denotes the number of model parameters.
+
+Table~\ref{tab:reg_overhead} illustrates the wall-clock training cost of these regularizers on the Concrete dataset.
+Both methods incur substantial overhead relative to a naive deep ensemble (DE), and this overhead grows super-linearly with the ensemble size $M$ due to their quadratic inter-member coupling.
+
+\begin{table}[ht]
+  \centering
+  \caption{Training time (seconds) on the Concrete dataset for increasing ensemble sizes $M$.}
+  \label{tab:reg_overhead}
+  \begin{tabular}{lccc}
+    \toprule
+    & \multicolumn{3}{c}{Ensemble size $M$} \\
+    \cmidrule(lr){2-4}
+    Method & $M=5$ & $M=10$ & $M=20$ \\
+    \midrule
+    DE    &  23.3\,s          &  51.0\,s          &   93.7\,s \\
+    Repul &  51.6\,s\ (2.2$\times$) & 179.0\,s\ (3.5$\times$) & 384.7\,s\ (4.1$\times$) \\
+    DICE  &  86.0\,s\ (3.7$\times$) & 269.2\,s\ (5.3$\times$) & 937.0\,s\ (10.0$\times$) \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\section{Methodology}
+\label{sec:method}
+
+\subsection{Dynamical Stability and the Edge of Stability in Deep Ensembles}
+\label{subsec:sharpness_stability}
+
+\begin{figure}[!t]
+  \centering
+  \includegraphics[width=\linewidth]{resources/uci/pumadyn_sharpness_vanilla.png}
+  \caption{Per-member sharpness $\lambda_{\max}$ of a vanilla 5-member Deep Ensemble on pumadyn. Sharpness rises progressively and saturates near $2/\eta$ (dashed), showing the two-phase dynamic is intrinsic to deep ensemble training.}
+  \Description{Single-panel plot of per-member sharpness over training epochs for a vanilla
+  5-member deep ensemble on pumadyn. All members show progressive sharpening followed by
+  saturation near the 2/eta threshold, illustrating the two-phase training dynamic.}
+  \label{fig:uci_sharpness_vanilla}
+\end{figure}
+
+\begin{figure}[!t]
+  \centering
+  \includegraphics[width=\linewidth]{resources/uci/pumadyn_sharpness_pair.png}
+  \caption{Per-member sharpness $\lambda_{\max}$ for DICE+STOP (left) and Repul+STOP (right) on pumadyn (5 members). Vertical dashed lines: per-member EoS triggers; horizontal dashed line: $2/\eta$.}
+  \Description{Two side-by-side plots of sharpness over training epochs for DICE+STOP and
+  Repul+STOP ensembles on pumadyn. Sharpness rises during early training and saturates near
+  the 2/eta threshold, with vertical dashed lines marking per-member EoS trigger epochs.}
+  \label{fig:uci_sharpness}
+\end{figure}
+
+Deep ensembles' diversity emerges from the distinct regions of the
+loss landscape explored by different members during optimization.
+Understanding the learning dynamics of ensemble training is therefore
+essential for explaining when and how diversity is formed. Recent advances in optimization theory suggest that stochastic gradient
+descent (SGD) exhibits distinct dynamical phases governed by the local
+geometry of the loss landscape~\citep{kalra2023phaseDiagram}.
+To characterize this geometry for each ensemble member, we consider
+\emph{sharpness}, defined as the largest eigenvalue of the Hessian of the
+empirical training loss with respect to model parameters~\citep{hochreiter1997flat}.
+For an ensemble member with parameters $\theta$ and loss
+$\mathcal{L}(\theta)$, sharpness is given by
+\begin{equation}
+\label{eq:sharpness_def}
+\lambda_{\max}(\theta)
+=
+\lambda_{\max}\!\left( \nabla^2_{\theta} \mathcal{L}(\theta) \right).
+\end{equation}
+
+For simplicity, we use $\lambda_{\max}$ and \emph{sharpness} interchangeably throughout this work. Sharpness captures the maximum local curvature of the loss surface and quantifies the worst-case sensitivity of the loss to parameter perturbations.
+
+
+Beyond describing geometry, sharpness directly governs the training dynamic of deep ensembles.
+For a fixed learning rate $\eta$, \citet{wu2018sgdselect} shows that training is convergent only when
+\begin{equation}
+\lambda_{\max} \le \frac{2}{\eta}.
+\label{eq:stability_bound}
+\end{equation}
+
+Remarkably, \citet{cohen2021gradient} show that when training modern
+neural networks with large learning rates,
+optimization typically evolves toward this very boundary.
+Specifically, the largest Hessian eigenvalue $\lambda_{\max}$
+increases steadily during training—a phenomenon termed
+\emph{progressive sharpening}—until it reaches the critical
+threshold $2/\eta$.
+At this point, instead of diverging entirely, gradient descent
+enters a distinct dynamical regime called the
+\emph{Edge of Stability (EoS)}.
+Figure~\ref{fig:uci_sharpness_vanilla} confirms that this behavior also emerges in vanilla deep ensembles:
+for four out of five members, sharpness progressively increases during early training and then saturates near the stability threshold $2/\eta$, oscillating within a narrow band thereafter.
+
+For deep ensembles, the emergence of the EoS has important implications.
+The evolution of sharpness naturally induces two distinct regimes for deep ensembles' training:
+
+\begin{itemize}
+    \item \textbf{Pre-EoS regime:} Sharpness increases progressively and the trajectory
+    remains highly sensitive to perturbations. In this phase, optimization
+    retains sufficient flexibility for ensemble members to be steered toward
+    different basins of the loss landscape.
+
+    \item \textbf{Post-EoS regime:} Sharpness saturates near the stability boundary
+    and optimization becomes marginally stable. The trajectory oscillates within
+    a selected basin rather than exploring new regions.
+\end{itemize}
+
+This stability-dependent transition is central to our framework.
+We hypothesize that ensemble diversity is primarily formed during the
+pre-EoS exploration phase, while after reaching the EoS,
+basin selection becomes effectively fixed.
+Consequently, additional diversity regularization beyond this point
+is unlikely to induce meaningful exploration and may instead
+interfere with convergence.
+Figure~\ref{fig:uci_sharpness} shows that the same two-phase dynamics persist under diversity-regularized training with DICE and Repul, where the per-member EoS triggers align closely with the transition into the saturation regime.
+The same pattern is consistently observed across all four UCI datasets; additional trajectories are provided in Appendix~\ref{app:uci_trajectories}.
+
+
+
+
+\subsection{Stability-Triggered Optimization for Deep Ensembles (STOP)}
+
+To operationalize stability-aware regularization, we monitor sharpness for each ensemble member independently.
+For the $k$-th model, the sharpness is given by $\lambda_{\max}^{(k)}$.
+And we define the iteration at which the model reaches the EoS as
+\begin{equation}
+t_{\mathrm{EoS}}^{(k)}
+=
+\inf
+\left\{
+t : \lambda_{\max}^{(k)}(t) \ge \beta \frac{2}{\eta}
+\right\},
+\label{eq:STOP_time}
+\end{equation}
+where $\beta \in (0,1)$ is a tolerance parameter accounting for estimation noise.
+This provides a sharpness-based, model-specific trigger indicating the onset of
+dynamical marginal stability.
+
+Using this trigger, we define a Stability-Triggered Optimization (STOP) training strategy for ensemble regularization:
+\begin{equation}
+\mathcal{L}_{\mathrm{STOP}}^{(k)}(t)
+=
+\begin{cases}
+\mathcal{L}^{(k)}(\theta_k) + \alpha \mathcal{R}(\theta_k), & t < t_{\mathrm{EoS}}^{(k)}, \\[2mm]
+\mathcal{L}^{(k)}(\theta_k), & t \ge t_{\mathrm{EoS}}^{(k)},
+\end{cases}
+\label{eq:stability_triggered_objective}
+\end{equation}
+where $\mathcal{L}^{(k)}(\theta_k)$ denotes the task loss, $\mathcal{R}(\theta_k)$ is a
+regularization term, and $\alpha$ is a fixed regularization coefficient.
+Once marginal stability is reached, the regularization term is completely disabled, allowing
+unconstrained convergence while preserving the diversity established during the exploration phase.
+Empirically, Figure~\ref{fig:uci_trajectory_airfoil} shows that diversity metrics stabilize rather than collapse after the EoS trigger, confirming that the diversity formed during pre-EoS exploration persists even after regularization is removed.
+
+
+\paragraph{Regularization across members at different EoS stages.}
+In practice, ensemble members may reach EoS at different times due to stochasticity in initialization and training dynamics.
+To maintain theoretical consistency with the stability-aware framework, we adopt the following design:
+pre-EoS members' regularization only couples with other pre-EoS members, while post-EoS members are completely decoupled from regularization.
+This principled design is motivated by several considerations. First, decoupling post-EoS members preserves the basin that each has already explored and selected, enabling unperturbed convergence to a locally optimal solution. Second, this approach aligns with our core hypothesis that ensemble diversity emerges exclusively during the pre-EoS exploration phase; once exploration concludes and basin selection is fixed, additional ensemble-level constraints become theoretically unnecessary and potentially harmful to convergence quality. Third, this decoupling simplifies the implementation by avoiding the computational complexity of tracking mixed coupling across heterogeneous member states during training.
+The resulting diversity between pre- and post-EoS members is thus naturally established through the independent exploration that each member undertakes during its own pre-EoS period.
+
+% \paragraph{Empirical validation of STOP.}
+% Figure~\ref{fig:uci_trajectory_airfoil} provides empirical evidence for this design on the pumadyn dataset.
+% During the pre-EoS phase, diversity regularization is active and all diversity metrics rise as members explore distinct regions of the loss landscape.
+% At the EoS trigger, regularization is disabled; crucially, all diversity metrics stabilize rather than collapsing, confirming that the pre-EoS exploration phase is sufficient to establish persistent ensemble diversity.
+% This supports our core hypothesis that basin selection becomes effectively fixed once marginal stability is reached, and that post-EoS regularization is both unnecessary and potentially harmful to convergence.
+
+\begin{figure}[!t]
+  \centering
+  \includegraphics[width=\linewidth]{resources/uci/pumadyn_dice_repul_pair_diversity.png}
+  \caption{Diversity trajectories on pumadyn (5 members): DICE+STOP (left), Repul+STOP (right). Rows: sharpness $\lambda_{\max}$; function-space distance; RMSE; Jensen gap. Vertical lines: per-member EoS triggers.}
+  \Description{Four-row side-by-side plots for DICE+STOP and Repul+STOP on pumadyn. Rows show
+  sharpness, function-space distance, RMSE, and Jensen gap over training epochs. Vertical dashed
+  lines mark EoS triggers. Diversity metrics rise during pre-EoS and stabilize afterward.}
+  \label{fig:uci_trajectory_airfoil}
+\end{figure}
+
+\subsection{Practical Sharpness Estimation and Evaluation Schedule}
+\label{subsec:sharpness_schedule}
+
+\paragraph{Estimating the dominant Hessian eigenvalue.}
+Direct computation of the Hessian is infeasible for modern neural networks.
+Instead, we estimate $\lambda_{\max}$ using Hessian--vector products computed via Pearlmutter's trick \citep{pearlmutter1994fast}.
+Given a direction $v$, the Hessian--vector product is expressed as
+\[
+\nabla^2_{\theta} \mathcal{L}(\theta)\, v
+=
+\frac{\partial}{\partial \theta}
+\left(
+\nabla_{\theta} \mathcal{L}(\theta)^\top v
+\right),
+\]
+which can be efficiently evaluated using automatic differentiation without explicitly forming the Hessian.
+
+To approximate the dominant eigenvalue, we apply the power iteration method, which iteratively updates
+\[
+v_{t+1} \leftarrow
+\frac{\nabla^2_{\theta} \mathcal{L}(\theta)\, v_t}
+{\left\| \nabla^2_{\theta} \mathcal{L}(\theta)\, v_t \right\|_2},
+\quad
+\lambda_t \leftarrow
+v_t^\top \nabla^2_{\theta} \mathcal{L}(\theta)\, v_t,
+\]
+until convergence~\citep{golub2013matrix}.
+In practice, Hessian--vector products are computed on minibatches and averaged across the dataset, yielding an efficient approximation of the empirical Hessian suitable for monitoring training dynamics in deep ensembles.
+
+\paragraph{Computational considerations.}
+Despite avoiding explicit Hessian construction,
+sharpness estimation remains computationally expensive.
+As a result, evaluating sharpness $\lambda_{\max}(t)$ at every training epoch $t \in \{1,\dots,T\}$ would introduce substantial overhead without providing commensurate benefits for monitoring training dynamics.
+Moreover, as discussed in Section~\ref{subsec:sharpness_stability}, once optimization approaches EoS, sharpness no longer exhibits a systematic upward trend and instead fluctuates within a narrow band around the stability threshold \( 2/\eta \).
+In this regime, frequent evaluations of $\lambda_{\max}(t)$ provide limited additional information, as the dominant eigenvalue remains effectively saturated by the stability constraint.
+
+Based on this, we adopt a sparse evaluation strategy. Specifically, we compute sharpness every 5, 10, or 20 training epochs. Empirically, we find that a cadence of 10 epochs provides a good trade-off, reliably capturing the qualitative evolution of curvature while reducing computational cost. Across all tested cadences, the onset of marginal stability is consistently detected, and the overall training dynamics remain qualitatively unchanged. A detailed sensitivity analysis over cadence is provided in Appendix~\ref{app:cadence}.
+
+% In addition, sharpness estimation does not begin from the start of training.
+% During the early optimization stage ($t \ll T$), curvature typically satisfies
+% $\lambda_{\max}(t) \ll 2/\eta$, making sharpness measurements both noisy and uninformative for STOP triggering.
+% We therefore delay sharpness computation until $t_0 = \lceil 0.2T \rceil$, corresponding to 20\% of the total training epochs.
+% This heuristic reflects the empirical observation that ensemble members rarely approach marginal stability in the very early stages of optimization, and allows computational resources to be focused on the portion of training where sharpness dynamics are most relevant.
+
+
+\section{Related Work}\label{sec:related work}
+
+\subsection{Deep Ensembles}
+
+Deep ensembles have emerged as a strong baseline for predictive performance and uncertainty estimation, motivating a broad range of extensions that aim to improve their accuracy, robustness, and diversity. Early work primarily explored architectural and regularization-based mechanisms for inducing diversity among independently trained models. For example, Negative Correlation Learning~\citep{liu1999ensemble} explicitly penalizes correlated predictions across ensemble members, encouraging disagreement on out-of-distribution inputs while preserving consistency on in-distribution data. Anchored Ensembles~\citep{pearce2020uncertainty} introduce random anchor points in parameter space and regularize each member toward a distinct anchor, promoting diversity through weight-space separation.
+
+Several methods further explore parameter-space interventions to enhance sensitivity to distributional shifts. Deep Anti-Regularized Ensembles~\citep{demathelin2023deepantiregularizedensemblesprovide} bias training toward large-norm solutions, motivated by empirical observations linking weight magnitude to robustness under distribution shift. Repulsive Deep Ensembles~\citep{dangelo2021repulsive} instead introduce explicit repulsion between ensemble members via kernel-based regularization in weight or function space, drawing inspiration from particle-based variational inference and yielding improvements in calibration and out-of-distribution detection.
+
+Beyond weight-space regularization, other approaches promote functional diversity through input-dependent mechanisms. Sample Diversity Ensembles~\citep{mehrtens2022sample} expose different ensemble members to distinct augmented or out-of-distribution views and enforce orthogonality in their responses, leading to increased predictive diversity. Posterior Networks~\citep{charpentier2020posterior} adopt a conditioning-based formulation, interpreting ensemble predictions as an approximation to the posterior predictive distribution and providing a structured representation of epistemic uncertainty.
+
+\subsection{Efficient Training Methods for Deep Ensembles}
+
+Despite their strong empirical performance, deep ensembles incur significant computational and memory costs due to training multiple independent models. This has motivated extensive work on improving their efficiency without sacrificing uncertainty quality. One prominent line of research focuses on parameter-sharing architectures that amortize computation across ensemble members. BatchEnsemble~\citep{wen2020batchensemble} achieves this by factorizing model parameters into a shared backbone and rank-one perturbations that specialize each ensemble member at minimal additional cost. Rank-1 Bayesian Neural Networks~\citep{dusenberry2020efficient} extend this idea by introducing a Bayesian treatment over the low-rank factors, achieving strong performance in likelihood, accuracy, and calibration.
+
+Other approaches aim to reduce training cost by reusing optimization trajectories. Snapshot Ensembles~\citep{huang2017snapshot} capture multiple ensemble members from a single training run by exploiting cyclical learning rate schedules, effectively trading training time for additional checkpoints. Similarly, FiLM-Ensemble~\citep{turkoglu2022film} generates multiple ensemble members through feature-wise linear modulation applied to a shared backbone, enabling efficient sampling of diverse predictors.
+
+\section{Experiments}
+\label{sec:experiments}
+
+\begin{table*}[t]
+\centering
+\caption{Total training time in seconds ($\downarrow$) for DICE vs.\ DICE+STOP across datasets and ensemble sizes. \textbf{Bold} = faster.}
+\label{tab:training_time_dice}
+\begin{tabular}{lrrrrrrrr}
+\toprule
+Dataset & \multicolumn{2}{c}{$M=5$} & \multicolumn{2}{c}{$M=10$} & \multicolumn{2}{c}{$M=20$} & \multicolumn{2}{c}{$M=50$} \\
+\cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7} \cmidrule(lr){8-9}
+ & DICE & DICE+STOP & DICE & DICE+STOP & DICE & DICE+STOP & DICE & DICE+STOP \\
+\midrule
+Pumadyn & 626 & \textbf{452} & 1842 & \textbf{1460} & 6768 & \textbf{4749} & 36875 & \textbf{24051} \\
+Concrete & 86 & \textbf{74} & 269 & \textbf{238} & 937 & \textbf{870} & 5152 & \textbf{4684} \\
+Airfoil & 119 & \textbf{100} & 364 & \textbf{187} & 1281 & \textbf{756} & 7058 & \textbf{3748} \\
+Slump & 11 & 11 & 33 & \textbf{26} & 118 & \textbf{80} & 652 & \textbf{439} \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\begin{table*}[t]
+\centering
+\caption{Total training time in seconds ($\downarrow$) for Repul vs.\ Repul+STOP across datasets and ensemble sizes. \textbf{Bold} = faster.}
+\label{tab:training_time_repul}
+\begin{tabular}{lrrrrrrrr}
+\toprule
+Dataset & \multicolumn{2}{c}{$M=5$} & \multicolumn{2}{c}{$M=10$} & \multicolumn{2}{c}{$M=20$} & \multicolumn{2}{c}{$M=50$} \\
+\cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7} \cmidrule(lr){8-9}
+ & Repul & Repul+STOP & Repul & Repul+STOP & Repul & Repul+STOP & Repul & Repul+STOP \\
+\midrule
+Pumadyn & 381 & \textbf{243} & 1340 & \textbf{671} & 2061 & \textbf{1076} & 7183 & \textbf{3459} \\
+Concrete & 52 & \textbf{33} & 179 & \textbf{96} & 385 & \textbf{151} & 1010 & \textbf{495} \\
+Airfoil & 72 & \textbf{47} & 252 & \textbf{100} & 366 & \textbf{207} & 1371 & \textbf{661} \\
+Slump & 7 & \textbf{5} & 24 & \textbf{11} & 35 & \textbf{24} & 136 & \textbf{83} \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\begin{table*}[t]
+\centering
+\caption{MSE ($\downarrow$) and QCE ($\downarrow$) for all methods on UCI datasets ($M=5$). Full results across ensemble sizes in Appendix~\ref{app:uci_results}. \textbf{Bold} = STOP is no worse than always-on.}
+\label{tab:uci_perf}
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{l rrrrr rrrrr}
+\toprule
+& \multicolumn{5}{c}{MSE ($\downarrow$)} & \multicolumn{5}{c}{QCE ($\downarrow$)} \\
+\cmidrule(lr){2-6} \cmidrule(lr){7-11}
+Dataset & DE & DICE & DICE+STOP & Repul & Repul+STOP & DE & DICE & DICE+STOP & Repul & Repul+STOP \\
+\midrule
+Pumadyn & 0.12 & 0.07 & \textbf{0.07} & 0.11 & \textbf{0.09} & 0.15 & 0.12 & \textbf{0.08} & \textbf{0.04} & \textbf{0.04} \\
+Concrete & 27.00 & 22.06 & \textbf{21.84} & 26.57 & \textbf{21.84} & 0.25 & 0.21 & \textbf{0.14} & 0.09 & \textbf{0.08} \\
+Airfoil & 5.60 & 5.43 & \textbf{5.01} & 4.85 & \textbf{4.81} & 0.20 & 0.19 & \textbf{0.18} & \textbf{0.14} & \textbf{0.14} \\
+Slump & 39.00 & 37.36 & \textbf{36.14} & 37.93 & \textbf{37.85} & 0.25 & 0.22 & 0.22 & \textbf{0.16} & \textbf{0.16} \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\textbf{Experimental Setup.}
+Our experimental pipeline builds upon the implementation of \citep{seligmann2024beyond}. We evaluate the proposed phase-aware regularization methods across two complementary domains: \textbf{UCI regression benchmarks} and \textbf{CIFAR image classification}. These datasets are chosen to cover a wide spectrum of learning scenarios, including low- versus high-dimensional inputs, regression versus classification tasks, and both synthetic and real-world data distributions. All experiments were conducted on a single NVIDIA NVIDIA RTX A5500 GPU based on the Ampere architecture with compute capability 8.6. The hardware provides 10,240 CUDA cores and 320 Tensor Cores, together with 24,GB of GPU memory. The theoretical peak performance of the device is approximately 34,100 GFLOPS.
+
+\textbf{Training Protocol.}
+Each ensemble member is optimized independently using SGD to minimize the MSE loss. The tolerance parameter $\beta$ defined in Equation~\ref{eq:STOP_time} is uniformly set to $0.9$ across all experimental runs; this choice is validated by an ablation study presented in Appendix~\ref{app:threshold}, which demonstrates that this value yields superior performance compared to alternative configurations. 
+
+\textbf{Baseline Methods.}
+To benchmark the effectiveness of our STOP approach, we use it on two deep ensembles diversity regularization methods, \textbf{Repul} and \textbf{DICE methods}, which are introduced in Subsection~\ref{subsec:regularization prelimnary}.
+
+\textbf{Evaluation Metrics.}
+We assess model performance using task-appropriate metrics that capture both predictive accuracy and uncertainty quality:
+\begin{itemize}
+    \item For both UCI and CIFAR, we report the \textbf{MSE} to evaluate point-prediction accuracy.
+
+    \item To measure uncertainty calibration, we report the \textbf{Expected Calibration Error (ECE)} for classification tasks (CIFAR) and the \textbf{Quantile Calibration Error (QCE)} for regression tasks (UCI). ECE quantifies the discrepancy between predicted confidence and empirical accuracy, while QCE measures the deviation between empirical coverage and nominal confidence levels.
+
+    \item To evaluate the computational efficiency of the proposed phase-aware regularization, we additionally report the total training time for all methods.
+\end{itemize}
+
+
+
+\textbf{Optimization and Training} The experiments are conducted with an initial PyTorch random seed of 0. We train the model on five different data splits, where the random seed is incremented by 1 for each split. The reported results are averaged across all splits. For UCI, models are trained for 500 total epochs with batch size 128. For CIFAR, models are trained for 200 total epochs with batch size 256.
+Training is organized into five outer iterations, with epochs equally divided across iterations; within each iteration, ensemble members are trained sequentially.
+
+
+\textbf{Diversity Regularization} We compare against DICE and Repulsive Deep Ensembles under identical optimization settings.
+For UCI regression, regularization strengths in Equation~\ref{eq:reg_objective} are set to $\lambda_{\text{DICE}}=0.1$ and $\lambda_{\text{Repul}}=0.4$.
+For CIFAR classification, both methods use $\lambda=1.0$.
+Coefficients are fixed across ensemble sizes.
+
+\subsection{UCI Regression}
+\label{subsec: uci}
+
+
+
+To assess generalization performance and uncertainty quantification in regression settings, we conduct experiments on four widely used datasets from the UCI repository: \textbf{pumadyn}, \textbf{airfoil}, \textbf{slump}, and \textbf{concrete}. These datasets span a range of input dimensionalities, sample sizes, and noise characteristics, providing a diverse testset for evaluating ensemble behavior.
+
+A clear and consistent advantage is observed in computational efficiency. Tables~\ref{tab:training_time_dice} and~\ref{tab:training_time_repul} show that total training time is substantially reduced for trajectory-based methods compared to non-trajectory baselines, with the gap widening as the ensemble size increases. This improvement is a direct consequence of the proposed stability-aware training strategy.
+To further characterize the runtime decomposition, Table~\ref{tab:timing} breaks total training time into three components: base forward/backward pass ($t_{\text{base}}$), diversity regularization ($t_{\text{reg}}$), and sharpness monitoring ($t_{\text{sharp}}$).
+DICE+STOP reduces the combined overhead $t_{\text{reg}}+t_{\text{sharp}}$ by 33--37\% relative to always-on DICE regularization; Repul+STOP achieves a 57--65\% reduction.
+Sharpness monitoring accounts for only 2--5\% of total training time, confirming that the EoS detection cost is negligible relative to the regularization savings it enables.
+
+Table~\ref{tab:uci_perf} reports MSE and QCE for DICE and Repulsive Deep Ensembles ($M=5$). Across all UCI datasets, the phase-aware regularization technique does not degrade performance on MSE or QCE. Full results across all ensemble sizes are provided in Appendix~\ref{app:uci_results}.
+
+\begin{table}[!ht]
+\centering
+\caption{Training time breakdown across UCI datasets (members=5).
+$t_{\text{total}}$: total wall-clock time (seconds).
+$t_{\text{reg}}$: time in diversity regularization.
+$t_{\text{sharp}}$: time in sharpness monitoring.
+\textbf{Bold}: $t_{\text{reg}}+t_{\text{sharp}}$ is less than always-on $t_{\text{reg}}$.}
+\label{tab:timing}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lrrrr}
+\toprule
+\textbf{Metric} & \textbf{pumadyn} & \textbf{concrete} & \textbf{airfoil} & \textbf{slump} \\
+\midrule
+
+\multicolumn{5}{l}{\textbf{Deep Ensemble}} \\
+$t_{\text{total}}$ & 845 & 115 & 160 & 15 \\
+
+\midrule
+\multicolumn{5}{l}{\textbf{DICE}} \\
+$t_{\text{total}}$ & 3130 & 430 & 595 & 55 \\
+$t_{\text{reg}}$   & 885  & 120 & 170 & 15 \\
+
+\midrule
+\multicolumn{5}{l}{\textbf{DICE+STOP}} \\
+$t_{\text{total}}$ & 2260 & 370 & 500 & 55 \\
+$t_{\text{reg}}$   & 525  & 90  & 125 & 15 \\
+$t_{\text{sharp}}$ & 65   & 20  & 20  & 0 \\
+$t_{\text{reg}}+t_{\text{sharp}}$ & \textbf{590} & \textbf{110} & \textbf{145} & \textbf{15} \\
+
+\midrule
+\multicolumn{5}{l}{\textbf{Repul}} \\
+$t_{\text{total}}$ & 1905 & 260 & 360 & 35 \\
+$t_{\text{reg}}$   & 965  & 130 & 180 & 15 \\
+
+\midrule
+\multicolumn{5}{l}{\textbf{Repul+STOP}} \\
+$t_{\text{total}}$ & 1215 & 165 & 235 & 25 \\
+$t_{\text{reg}}$   & 315  & 40  & 60  & 10 \\
+$t_{\text{sharp}}$ & 25   & 5   & 10  & 0 \\
+$t_{\text{reg}}+t_{\text{sharp}}$ & \textbf{340} & \textbf{45} & \textbf{70} & \textbf{10} \\
+
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+
+
+\subsubsection{Comparison with Fixed-Stop Schedules}
+
+To verify that EoS-aware triggering adds value beyond a simple schedule, Tables~\ref{tab:baselines_mse} and~\ref{tab:baselines_qce} compare STOP against (i) four fixed-fraction schedules that disable regularization after 30\%, 50\%, 70\%, or 90\% of training, and (ii) a \emph{matched} baseline that stops at the same average epoch as STOP but without sharpness computation.
+For DICE+STOP, the EoS criterion outperforms all fixed-stop schedules and the matched baseline on three of four datasets; the airfoil dataset is the exception, where only 2 of 5 members trigger the EoS condition and the advantage diminishes accordingly.
+For Repul+STOP, always-on regularization retains an edge in NLL when training cost is not a constraint, but STOP consistently surpasses all fixed-stop schedules and the matched baseline on concrete and slump.
+The systematic underperformance of the matched baseline relative to STOP confirms that the EoS-triggered criterion---rather than the stopping time alone---drives the improvement.
+
+\begin{table}[ht]
+\centering
+\caption{Mean squared error (MSE, $\downarrow$) for fixed-stop and matched-stop baselines vs. STOP (members=5). \textbf{Bold}: best within each method family per dataset.}
+\label{tab:baselines_mse}
+\small
+\begin{tabular}{lrrrr}
+\toprule
+\textbf{Method} & \textbf{pumadyn} & \textbf{concrete} & \textbf{airfoil} & \textbf{slump} \\
+\midrule
+\multicolumn{5}{l}{\textit{DICE family}} \\
+always-on   & 0.0751 & 22.1455 & 5.4744 & 37.3553 \\
+fixed-30\%  & 0.0750 & 22.1432 & 5.4801 & 36.5624 \\
+fixed-50\%  & 0.0751 & 22.1279 & 5.4327 & 34.8780 \\
+fixed-70\%  & \textbf{0.0749} & 22.1207 & 5.4312 & 36.4655 \\
+fixed-90\%  & 0.0750 & 22.1211 & 5.4391 & 37.2506 \\
+matched     & 0.0751 & 22.1237 & 5.4871 & 36.1453 \\
+STOP (ours) & \textbf{0.0749} & \textbf{22.0648} & \textbf{5.4293} & 36.1364 \\
+\midrule
+\multicolumn{5}{l}{\textit{Repul family}} \\
+always-on   & 0.1134 & 26.5749 & 5.2587 & 37.9284 \\
+fixed-30\%  & 0.0863 & 23.4516 & 5.3139 & 38.5184 \\
+fixed-50\%  & 0.0858 & 23.4886 & 5.2333 & 40.2644 \\
+fixed-70\%  & 0.0929 & 24.2742 & 5.0632 & 40.8947 \\
+fixed-90\%  & 0.1063 & 25.8604 & 4.8900 & \textbf{36.6999} \\
+matched     & 0.0864 & 23.4516 & 5.2664 & 38.0793 \\
+STOP (ours) & \textbf{0.0857} & \textbf{23.3419} & \textbf{4.8473} & 38.0099 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[ht]
+\centering
+\caption{Quantile calibration error (QCE, $\downarrow$) for fixed-stop and matched-stop baselines vs. STOP (members=5). \textbf{Bold}: best within each method family per dataset.}
+\label{tab:baselines_qce}
+\small
+\begin{tabular}{lrrrr}
+\toprule
+\textbf{Method} & \textbf{pumadyn} & \textbf{concrete} & \textbf{airfoil} & \textbf{slump} \\
+\midrule
+\multicolumn{5}{l}{\textit{DICE family}} \\
+always-on   & 0.1220 & 0.2117 & 0.1887 & 0.2222 \\
+fixed-30\%  & 0.1225 & 0.2136 & 0.1820 & 0.2222 \\
+fixed-50\%  & 0.1253 & 0.2117 & 0.1827 & \textbf{0.1822} \\
+fixed-70\%  & 0.1233 & \textbf{0.2097} & 0.1840 & 0.2222 \\
+fixed-90\%  & 0.1219 & \textbf{0.2097} & 0.1880 & 0.2222 \\
+matched     & 0.1219 & 0.2136 & 0.1840 & 0.2222 \\
+STOP (ours) & \textbf{0.1211} & \textbf{0.2097} & \textbf{0.1807} & 0.2222 \\
+\midrule
+\multicolumn{5}{l}{\textit{Repul family}} \\
+always-on   & 0.0408 & 0.1680 & 0.1589 & \textbf{0.1622} \\
+fixed-30\%  & 0.0987 & 0.1728 & 0.1609 & 0.2422 \\
+fixed-50\%  & 0.0863 & 0.1546 & 0.1589 & 0.2422 \\
+fixed-70\%  & 0.0730 & 0.1352 & 0.1696 & 0.2422 \\
+fixed-90\%  & 0.0922 & 0.1352 & 0.1773 & \textbf{0.1622} \\
+matched     & 0.0947 & 0.1680 & 0.1622 & 0.2322 \\
+STOP (ours) & \textbf{0.0153} & \textbf{0.1680} & \textbf{0.1447} & 0.2322 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsubsection{Effect of Model Capacity}
+
+To further examine how the proposed STOP strategy scales with model complexity, we conduct an additional experiment on the \textbf{airfoil} dataset using DICE, where we vary the width of the base network while keeping all other settings fixed. Specifically, we compare a standard architecture with hidden layers of width 50 (1$\times$50 $\rightarrow$ 50$\times$1) against a wider model with hidden layers of width 100 (1$\times$100 $\rightarrow$ 100$\times$100 $\rightarrow$ 100$\times$1). Both models are trained under identical optimization and regularization settings.
+
+\begin{table}[ht]
+\centering
+\caption{Total training time (seconds, $\downarrow$) for DICE vs.\ DICE+STOP on Airfoil across ensemble sizes and model widths. \textbf{Bold} = faster within each width--method pair. Savings (\%) = reduction relative to always-on DICE.}
+\label{tab:uci_width_time}
+\small
+\begin{tabular}{lrrrrrr}
+\toprule
+ & \multicolumn{3}{c}{Width 50} & \multicolumn{3}{c}{Width 100} \\
+\cmidrule(lr){2-4} \cmidrule(lr){5-7}
+$M$ & DICE & DICE+STOP & Savings & DICE & DICE+STOP & Savings \\
+\midrule
+5  & 111 & \textbf{93}   & 16\% & 153   & \textbf{77}   & 50\% \\
+10 & 360 & \textbf{188}  & 48\% & 527   & \textbf{249}  & 53\% \\
+20 & 1292 & \textbf{764} & 41\% & 1879  & \textbf{889}  & 53\% \\
+50 & 7114 & \textbf{3765} & 47\% & 10731 & \textbf{4149} & 61\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:uci_width_time} shows that while predictive performance remains comparable across model widths, the training-time savings achieved by STOP are substantially larger for the wider network. This behavior is expected, as the computational overhead of diversity regularization grows with model capacity, whereas STOP deactivates regularization once training enters the EoS regime. These results indicate that STOP becomes increasingly beneficial as model complexity increases, highlighting its practicality for training large and over-parameterized ensemble members.
+
+
+
+
+
+\subsection{CIFAR Classification}
+\label{subsec:cifar}
+
+\begin{table}[!t]
+\centering
+\caption{Total training time (hours, $\downarrow$) for CIFAR-10. \textbf{Bold} = faster.}
+\label{tab:cifar_training_time}
+\small
+\begin{tabular}{lrrrrrr}
+\toprule
+Method & \multicolumn{2}{c}{$M=5$} & \multicolumn{2}{c}{$M=10$} & \multicolumn{2}{c}{$M=20$} \\
+\cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7}
+ & Base & +STOP & Base & +STOP & Base & +STOP \\
+\midrule
+DICE  & 21.7 & \textbf{9.3} & 32.9 & \textbf{12.3} & 129.4 & \textbf{44.1} \\
+Repul & 4.1  & \textbf{1.7} & 8.4  & \textbf{3.5}  & 25.2  & \textbf{6.8}  \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+We further evaluate the proposed phase-aware regularization strategy on image classification using \textbf{CIFAR-10}.
+Beyond standard in-distribution evaluation, we assess robustness under distribution shift and out-OOD detection. Specifically, we consider two corrupted variants of CIFAR-10 with pixel corruption levels of $10\%$ and $20\%$, denoted as \textbf{Corrupt-1} and \textbf{Corrupt-2}, respectively. To evaluate OOD behavior, we use \textbf{STL-10} and \textbf{SVHN} as unseen test datasets.
+All ensemble members are trained exclusively on clean CIFAR-10. We adopt ResNet-20~\citep{he2016deep} as the base architecture for all ensemble members.
+
+Table~\ref{tab:cifar_training_time} reports total training time. DICE+STOP reduces training time by 57--66\% across ensemble sizes (21.7$\to$9.3\,h at $M=5$; 129.4$\to$44.1\,h at $M=20$). Repul+STOP achieves 59--73\% reduction (4.1$\to$1.7\,h at $M=5$; 25.2$\to$6.8\,h at $M=20$). The speedup grows with ensemble size, consistent with the quadratic scaling of diversity regularization cost. Across all ensemble sizes, STOP maintains accuracy and calibration performance close to or competitive with the corresponding always-on baselines for both DICE and Repul. Full accuracy and ECE results on all evaluation sets are provided in Appendix~\ref{app:cifar_results}.
+
+
+
+
+\section{Conclusion}
+\label{sec:conclusion}
+
+In this work, we studied deep ensemble training through the lens of \emph{dynamical stability} and showed that ensemble optimization naturally evolves across two distinct phases separated by the edge of stability. Our analysis reveals that diversity among ensemble members is primarily established during an early exploration phase, when sharpness increases and optimization dynamics are highly responsive, while continued regularization beyond the marginally stable regime yields limited additional benefit despite incurring substantial computational cost.
+
+Based on this insight, we introduced \textbf{STOP}, a dynamical stability–triggered training strategy that applies diversity regularization only before the onset of marginal stability. Across both UCI regression and CIFAR classification benchmarks, STOP consistently maintains predictive accuracy and uncertainty calibration while significantly reducing training time. These results demonstrate that stability-triggered regularization offers a principled and efficient alternative for scaling deep ensemble methods to larger models and ensembles.
+
+
+%%
+%% The next two lines define the bibliography style to be used, and
+%% the bibliography file.
+\bibliographystyle{ACM-Reference-Format}
+\bibliography{sample-base}
+
+
+%%
+%% If your work has an appendix, this is the place to put it.
+\appendix
+
+\section{Full UCI Accuracy and Calibration Results}
+\label{app:uci_results}
+
+Tables~\ref{tab:uci_mse}--\ref{tab:uci_qce} report MSE and QCE for DICE and Repulsive Deep Ensembles across all ensemble sizes and UCI datasets.
+
+\begin{table}[!ht]
+\centering
+\caption{MSE ($\downarrow$) across UCI datasets.}
+\label{tab:uci_mse}
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{lrrrrrrrr}
+\toprule
+& \multicolumn{2}{c}{$M=5$}
+& \multicolumn{2}{c}{$M=10$}
+& \multicolumn{2}{c}{$M=20$}
+& \multicolumn{2}{c}{$M=50$} \\
+\cmidrule(lr){2-3} \cmidrule(lr){4-5}
+\cmidrule(lr){6-7} \cmidrule(lr){8-9}
+Dataset
+& Base & +STOP
+& Base & +STOP
+& Base & +STOP
+& Base & +STOP \\
+\midrule
+
+\multicolumn{9}{l}{\textbf{DICE}} \\
+Pumadyn  & 0.07 & \textbf{0.07} & \textbf{0.08} & 0.08 & \textbf{0.07} & 0.07 & \textbf{0.07} & 0.07 \\
+Concrete & 22.06 & \textbf{21.84} & \textbf{24.11} & 24.11 & \textbf{21.71} & 21.73 & \textbf{21.28} & 21.28 \\
+Slump    & 37.36 & \textbf{36.14} & 35.02 & \textbf{34.96} & 27.81 & \textbf{27.81} & 23.80 & \textbf{23.80} \\
+Airfoil  & 5.43 & \textbf{5.01} & \textbf{5.13} & 5.14 & \textbf{5.33} & 5.33 & \textbf{5.22} & 5.22 \\
+
+\midrule
+
+\multicolumn{9}{l}{\textbf{Repul}} \\
+Pumadyn  & 0.11 & \textbf{0.09} & 0.13 & \textbf{0.10} & 0.11 & \textbf{0.10} & 0.11 & \textbf{0.10} \\
+Concrete & 26.57 & \textbf{21.84} & 26.83 & \textbf{24.29} & \textbf{20.25} & 21.25 & \textbf{19.97} & 21.16 \\
+Slump    & 37.93 & \textbf{37.85} & \textbf{31.61} & 33.39 & \textbf{23.82} & 26.53 & \textbf{21.20} & 23.14 \\
+Airfoil  & 4.85 & \textbf{4.81} & 6.62 & \textbf{5.28} & 7.29 & \textbf{5.37} & \textbf{4.86} & 5.30 \\
+
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[!ht]
+\centering
+\caption{QCE ($\downarrow$) across UCI datasets.}
+\label{tab:uci_qce}
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{lrrrrrrrr}
+\toprule
+& \multicolumn{2}{c}{$M=5$}
+& \multicolumn{2}{c}{$M=10$}
+& \multicolumn{2}{c}{$M=20$}
+& \multicolumn{2}{c}{$M=50$} \\
+\cmidrule(lr){2-3} \cmidrule(lr){4-5}
+\cmidrule(lr){6-7} \cmidrule(lr){8-9}
+Dataset
+& Base & +STOP
+& Base & +STOP
+& Base & +STOP
+& Base & +STOP \\
+\midrule
+
+\multicolumn{9}{l}{\textbf{DICE}} \\
+Pumadyn  & 0.12 & \textbf{0.08} & 0.07 & \textbf{0.07} & \textbf{0.06} & 0.06 & 0.04 & \textbf{0.04} \\
+Concrete & 0.21 & \textbf{0.14} & \textbf{0.10} & 0.10 & 0.12 & 0.12 & 0.09 & 0.09 \\
+Slump    & 0.22 & 0.22 & 0.16 & 0.16 & 0.24 & 0.24 & 0.23 & 0.23 \\
+Airfoil  & 0.19 & \textbf{0.18} & 0.13 & \textbf{0.13} & \textbf{0.12} & 0.12 & \textbf{0.11} & 0.11 \\
+
+\midrule
+
+\multicolumn{9}{l}{\textbf{Repul}} \\
+Pumadyn  & \textbf{0.04} & \textbf{0.04} & 0.09 & \textbf{0.06} & 0.14 & \textbf{0.04} & 0.18 & \textbf{0.03} \\
+Concrete & 0.09 & \textbf{0.08} & 0.07 & \textbf{0.06} & 0.13 & \textbf{0.09} & \textbf{0.07} & \textbf{0.07} \\
+Slump    & \textbf{0.16} & \textbf{0.16} & 0.24 & \textbf{0.16} & \textbf{0.26} & \textbf{0.26} & 0.24 & \textbf{0.23} \\
+Airfoil  & \textbf{0.14} & \textbf{0.14} & \textbf{0.10} & \textbf{0.10} & 0.11 & \textbf{0.10} & \textbf{0.09} & \textbf{0.09} \\
+
+\bottomrule
+\end{tabular}
+\end{table}
+% \begin{table*}[t]
+% \centering
+% \caption{MSE ($\downarrow$) for DICE vs.\ DICE+STOP across datasets and ensemble sizes. \textbf{Bold} = better.}
+% \label{tab:results_dice_plain_mse}
+% \begin{tabular}{lrrrrrrrrrrrrr}
+% \toprule
+% Dataset & \multicolumn{3}{c}{$M=5$} & \multicolumn{3}{c}{$M=10$} & \multicolumn{3}{c}{$M=20$} & \multicolumn{3}{c}{$M=50$} \\
+% \cmidrule(lr){2-4} \cmidrule(lr){5-7} \cmidrule(lr){8-10} \cmidrule(lr){11-13}
+%  & DE & DICE & DICE+STOP & DE & DICE & DICE+STOP & DE & DICE & DICE+STOP & DE & DICE & DICE+STOP \\
+% \midrule
+% Pumadyn & 0.12 & 0.07 & \textbf{0.07} & 0.14 & \textbf{0.08} & 0.08 & 0.12 & \textbf{0.07} & 0.07 & 0.12 & \textbf{0.07} & 0.07 \\
+% Concrete & 27.00 & 22.06 & \textbf{21.84} & 27.50 & \textbf{24.11} & 24.11 & 22.00 & \textbf{21.71} & 21.73 & 21.40 & \textbf{21.28} & 21.28 \\
+% Slump & 39.00 & 37.36 & \textbf{36.14} & 35.50 & 35.02 & \textbf{34.96} & 28.50 & 27.81 & \textbf{27.81} & 24.50 & 23.80 & \textbf{23.80} \\
+% Airfoil & 5.60 & 5.43 & \textbf{5.01} & 7.00 & \textbf{5.13} & 5.14 & 7.50 & \textbf{5.33} & 5.33 & 5.40 & \textbf{5.22} & 5.22 \\
+% \bottomrule
+% \end{tabular}
+% \end{table*}
+
+% \begin{table*}[t]
+% \centering
+% \caption{MSE ($\downarrow$) for Repul vs.\ Repul+STOP across datasets and ensemble sizes. \textbf{Bold} = better.}
+% \label{tab:results_repul_plain_mse}
+% \begin{tabular}{lrrrrrrrrrrrrr}
+% \toprule
+% Dataset & \multicolumn{3}{c}{$M=5$} & \multicolumn{3}{c}{$M=10$} & \multicolumn{3}{c}{$M=20$} & \multicolumn{3}{c}{$M=50$} \\
+% \cmidrule(lr){2-4} \cmidrule(lr){5-7} \cmidrule(lr){8-10} \cmidrule(lr){11-13}
+%  & DE & Repul & Repul+STOP & DE & Repul & Repul+STOP & DE & Repul & Repul+STOP & DE & Repul & Repul+STOP \\
+% \midrule
+% Pumadyn & 0.12 & 0.11 & \textbf{0.09} & 0.14 & 0.13 & \textbf{0.10} & 0.12 & 0.11 & \textbf{0.10} & 0.12 & 0.11 & \textbf{0.10} \\
+% Concrete & 27.00 & 26.57 & \textbf{21.84} & 27.50 & 26.83 & \textbf{24.29} & 22.00 & \textbf{20.25} & 21.25 & 21.40 & \textbf{19.97} & 21.16 \\
+% Slump & 39.00 & 37.93 & \textbf{37.85} & 35.50 & \textbf{31.61} & 33.39 & 28.50 & \textbf{23.82} & 26.53 & 24.50 & \textbf{21.20} & 23.14 \\
+% Airfoil & 5.60 & 4.85 & \textbf{4.81} & 7.00 & 6.62 & \textbf{5.28} & 7.50 & 7.29 & \textbf{5.37} & 5.40 & \textbf{4.86} & 5.30 \\
+% \bottomrule
+% \end{tabular}
+% \end{table*}
+
+% \begin{table*}[t]
+% \centering
+% \caption{QCE ($\downarrow$) for DICE vs.\ DICE+STOP across datasets and ensemble sizes. \textbf{Bold} = better.}
+% \label{tab:results_dice_plain_qce}
+% \begin{tabular}{lrrrrrrrrrrrrr}
+% \toprule
+% Dataset & \multicolumn{3}{c}{$M=5$} & \multicolumn{3}{c}{$M=10$} & \multicolumn{3}{c}{$M=20$} & \multicolumn{3}{c}{$M=50$} \\
+% \cmidrule(lr){2-4} \cmidrule(lr){5-7} \cmidrule(lr){8-10} \cmidrule(lr){11-13}
+%  & DE & DICE & DICE+STOP & DE & DICE & DICE+STOP & DE & DICE & DICE+STOP & DE & DICE & DICE+STOP \\
+% \midrule
+% Pumadyn & 0.15 & 0.12 & \textbf{0.08} & 0.10 & 0.07 & \textbf{0.07} & 0.15 & \textbf{0.06} & 0.06 & 0.20 & 0.04 & \textbf{0.04} \\
+% Concrete & 0.25 & 0.21 & \textbf{0.14} & 0.12 & \textbf{0.10} & 0.10 & 0.15 & 0.12 & 0.12 & 0.12 & 0.09 & 0.09 \\
+% Slump & 0.25 & 0.22 & 0.22 & 0.26 & 0.16 & 0.16 & 0.28 & 0.24 & 0.24 & 0.26 & 0.23 & 0.23 \\
+% Airfoil & 0.20 & 0.19 & \textbf{0.18} & 0.15 & 0.13 & \textbf{0.13} & 0.14 & \textbf{0.12} & 0.12 & 0.13 & \textbf{0.11} & 0.11 \\
+% \bottomrule
+% \end{tabular}
+% \end{table*}
+
+% \begin{table*}[t]
+% \centering
+% \caption{QCE ($\downarrow$) for Repul vs.\ Repul+STOP across datasets and ensemble sizes. \textbf{Bold} = better.}
+% \label{tab:results_repul_plain_qce}
+% \begin{tabular}{lrrrrrrrrrrrrr}
+% \toprule
+% Dataset & \multicolumn{3}{c}{$M=5$} & \multicolumn{3}{c}{$M=10$} & \multicolumn{3}{c}{$M=20$} & \multicolumn{3}{c}{$M=50$} \\
+% \cmidrule(lr){2-4} \cmidrule(lr){5-7} \cmidrule(lr){8-10} \cmidrule(lr){11-13}
+%  & DE & Repul & Repul+STOP & DE & Repul & Repul+STOP & DE & Repul & Repul+STOP & DE & Repul & Repul+STOP \\
+% \midrule
+% Pumadyn & 0.15 & \textbf{0.04} & \textbf{0.04} & 0.10 & 0.09 & \textbf{0.06} & 0.15 & 0.14 & \textbf{0.04} & 0.20 & 0.18 & \textbf{0.03} \\
+% Concrete & 0.25 & 0.09 & \textbf{0.08} & 0.12 & 0.07 & \textbf{0.06} & 0.15 & 0.13 & \textbf{0.09} & 0.12 & \textbf{0.07} & \textbf{0.07} \\
+% Slump & 0.25 & \textbf{0.16} & \textbf{0.16} & 0.26 & 0.24 & \textbf{0.16} & 0.28 & \textbf{0.26} & \textbf{0.26} & 0.26 & 0.24 & \textbf{0.23} \\
+% Airfoil & 0.20 & \textbf{0.14} & \textbf{0.14} & 0.15 & \textbf{0.10} & \textbf{0.10} & 0.14 & 0.11 & \textbf{0.10} & 0.13 & \textbf{0.09} & \textbf{0.09} \\
+% \bottomrule
+% \end{tabular}
+% \end{table*}
+
+\section{Diversity Trajectories on All UCI Datasets}
+\label{app:uci_trajectories}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.85\linewidth]{resources/uci/concrete_dice_repul_pair_diversity.png}
+  \caption{Diversity and sharpness trajectories on concrete (5 members), DICE (left) and Repul (right).}
+  \Description{Side-by-side line plots showing diversity and sharpness over training epochs for 5-member DICE+STOP and Repul+STOP ensembles on the concrete dataset.}
+  \label{fig:traj_concrete_pair}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.85\linewidth]{resources/uci/airfoil_dice_repul_pair_diversity.png}
+  \caption{Diversity and sharpness trajectories on airfoil (5 members), DICE (left) and Repul (right).}
+  \Description{Side-by-side line plots showing diversity and sharpness over training epochs for 5-member DICE+STOP and Repul+STOP ensembles on the pumadyn dataset.}
+  \label{fig:traj_pumadyn_pair}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.85\linewidth]{resources/uci/slump_dice_repul_pair_diversity.png}
+  \caption{Diversity and sharpness trajectories on slump (5 members), DICE (left) and Repul (right).}
+  \Description{Side-by-side line plots showing diversity and sharpness over training epochs for 5-member DICE+STOP and Repul+STOP ensembles on the slump dataset.}
+  \label{fig:traj_slump_pair}
+\end{figure}
+
+Figures~\ref{fig:traj_concrete_pair}--\ref{fig:traj_slump_pair} show the diversity and sharpness trajectories for DICE and Repul on the remaining three UCI datasets (concrete, pumadyn, slump), complementing Figures~\ref{fig:uci_sharpness}--\ref{fig:uci_trajectory_airfoil} in Section~\ref{subsec:sharpness_stability}.
+The two-phase pattern is consistent across all datasets and methods: diversity rises steeply during the pre-EoS exploration phase and saturates near the EoS trigger, while sharpness converges to the stability threshold $2/\eta$.
+
+\section{CIFAR-10 Full Results}
+\label{app:cifar_results}
+
+Table~\ref{tab:cifar_acc} and Table~\ref{tab:cifar_ece} report classification accuracy and ECE for DICE and Repul with and without STOP across all evaluation sets and ensemble sizes.
+
+\begin{table}[!ht]
+\centering
+\caption{Accuracy (\%, $\uparrow$) on CIFAR-10.}
+\label{tab:cifar_acc}
+\scriptsize
+\begin{tabular}{lrrrrrr}
+\toprule
+& \multicolumn{2}{c}{$M=5$} 
+& \multicolumn{2}{c}{$M=10$} 
+& \multicolumn{2}{c}{$M=20$} \\
+\cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7}
+Eval
+& Base & +STOP
+& Base & +STOP
+& Base & +STOP \\
+\midrule
+
+\multicolumn{7}{l}{\textbf{DICE}} \\
+Clean     & 87.6 & \textbf{88.0} & 87.2 & 86.9 & 90.3 & 90.1 \\
+Corrupt-1 & 76.1 & \textbf{77.6} & 76.8 & \textbf{77.8} & 81.4 & \textbf{81.8} \\
+Corrupt-2 & 63.6 & \textbf{66.1} & 65.9 & \textbf{67.3} & \textbf{68.8} & 68.7 \\
+SVHN OOD  & 10.3 & 10.3 & 10.9 & \textbf{11.1} & 10.1 & \textbf{10.2} \\
+STL OOD   & \textbf{44.4} & 44.3 & \textbf{42.9} & 42.3 & \textbf{45.8} & 45.3 \\
+
+\midrule
+
+\multicolumn{7}{l}{\textbf{Repul}} \\
+Clean     & 86.3 & 75.6 & 86.7 & \textbf{87.5} & 86.9 & \textbf{87.0} \\
+Corrupt-1 & 65.4 & \textbf{75.8} & 75.0 & \textbf{76.3} & 75.1 & \textbf{75.6} \\
+Corrupt-2 & 58.3 & \textbf{64.5} & 63.6 & \textbf{65.0} & 63.6 & \textbf{64.2} \\
+SVHN OOD  & 10.4 & \textbf{10.5} & \textbf{11.0} & 10.9 & \textbf{10.5} & \textbf{10.5} \\
+STL OOD   & \textbf{43.7} & 38.5 & 42.7 & \textbf{44.1} & \textbf{43.6} & 43.0 \\
+
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[!ht]
+\centering
+\caption{ECE ($\downarrow$) on CIFAR-10.}
+\label{tab:cifar_ece}
+\scriptsize
+\begin{tabular}{lrrrrrrrr}
+\toprule
+& \multicolumn{2}{c}{$M=5$} & \multicolumn{2}{c}{$M=10$} & \multicolumn{2}{c}{$M=20$} \\
+\cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7}
+Evaluation 
+& Base & +STOP & Base & +STOP & Base & +STOP \\
+\midrule
+
+\multicolumn{7}{l}{\textbf{DICE}} \\
+Clean     & 0.057 & \textbf{0.057} & 0.083 & 0.086 & 0.073 & \textbf{0.068} \\
+Corrupt-1 & \textbf{0.027} & 0.037 & 0.070 & \textbf{0.067} & 0.069 & 0.072 \\
+Corrupt-2 & 0.042 & \textbf{0.020} & \textbf{0.018} & 0.027 & \textbf{0.020} & 0.028 \\
+SVHN OOD  & 0.503 & \textbf{0.456} & \textbf{0.462} & 0.475 & 0.463 & \textbf{0.461} \\
+STL OOD   & 0.277 & \textbf{0.275} & 0.257 & \textbf{0.254} & 0.264 & \textbf{0.257} \\
+
+\midrule
+
+\multicolumn{7}{l}{\textbf{Repul}} \\
+Clean     & 0.097 & \textbf{0.053} & 0.074 & \textbf{0.071} & 0.079 & \textbf{0.074} \\
+Corrupt-1 & 0.050 & \textbf{0.035} & 0.048 & \textbf{0.039} & 0.053 & \textbf{0.041} \\
+Corrupt-2 & \textbf{0.021} & \textbf{0.021} & \textbf{0.011} & 0.017 & \textbf{0.009} & 0.017 \\
+SVHN OOD  & \textbf{0.367} & 0.461 & 0.506 & \textbf{0.484} & \textbf{0.453} & 0.490 \\
+STL OOD   & \textbf{0.201} & 0.213 & \textbf{0.256} & 0.265 & 0.257 & \textbf{0.252} \\
+
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+\section{Sensitivity Analysis}
+\label{app:sensitivity}
+
+We analyze the sensitivity of STOP to two key hyperparameters: the EoS threshold $\tau$ (the $\beta$ parameter in Equation~\ref{eq:STOP_time}) and the sharpness monitoring cadence (epochs between consecutive EoS checks). All experiments use $M=5$ members on UCI datasets.
+
+\subsection{Monitoring Cadence}
+\label{app:cadence}
+Table~\ref{tab:sensitivity_cadence} compares cadences of 5, 10 (default), and 50 epochs. The default cadence of 10 consistently achieves the best or near-best NLL across datasets, while coarser cadences (50 epochs) miss the EoS trigger on several datasets and revert to the performance of the fixed-30\% schedule. Finer cadences (5 epochs) offer no benefit and increase computational cost. These results confirm that a cadence of 10 epochs provides a reliable and efficient operating point.
+
+\begin{table}[!ht]
+\centering
+\caption{Sensitivity to monitoring cadence (epochs between EoS checks). MSE ($\downarrow$) and QCE ($\downarrow$) across UCI datasets. $^*$ marks the default. \textbf{Bold} = best per row.}
+\label{tab:sensitivity_cadence}
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{llrrrrrr}
+\toprule
+Dataset & Metric & \multicolumn{3}{c}{DICE} & \multicolumn{3}{c}{REPUL} \\
+\cmidrule(lr){3-5} \cmidrule(lr){6-8}
+& & 5 & 10$^*$ & 20 & 5 & 10$^*$ & 20 \\
+\midrule
+Pumadyn 
+& MSE & \textbf{0.07} & 0.08 & \textbf{0.07} & \textbf{0.09} & \textbf{0.09} & \textbf{0.09} \\
+& QCE & 0.12 & \textbf{0.08} & 0.16 & 0.10 & \textbf{0.07} & 0.09 \\
+\midrule
+Concrete 
+& MSE & 22.13 & \textbf{21.84} & 22.97 & 23.32 & \textbf{21.84} & 29.36 \\
+& QCE & 0.21 & \textbf{0.14} & 0.17 & 0.16 & \textbf{0.13} & 0.17 \\
+\midrule
+Airfoil 
+& MSE & 6.06 & \textbf{5.01} & 5.48 & 5.30 & \textbf{5.04} & 5.32 \\
+& QCE & 0.21 & \textbf{0.18} & 0.21 & \textbf{0.16} & \textbf{0.16} & 0.20 \\
+\midrule
+Slump 
+& MSE & 36.53 & \textbf{36.14} & 36.70 & 38.54 & \textbf{38.01} & 38.58 \\
+& QCE & \textbf{0.22} & \textbf{0.22} & \textbf{0.22} & \textbf{0.23} & \textbf{0.23} & \textbf{0.23} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Edge-of-Stability Threshold}
+\label{app:threshold}
+Table~\ref{tab:sensitivity_tau} sweeps $\beta \in \{0.7, 0.8, 0.9, 1.0\}$. The default $\beta=0.9$ performs best or near-best on three of four datasets for both DICE and Repul. Lower thresholds ($\beta \leq 0.8$) fire the trigger too early before members have sufficiently separated, while $\beta=1.0$ waits until the exact stability boundary and sometimes misses the optimal stopping point. The results demonstrate that STOP is not highly sensitive to the precise value of $\beta$: performance degrades gracefully across the tested range, and the default $\beta=0.95$ provides a robust operating point without dataset-specific tuning.
+
+\begin{table}[!ht]
+\centering
+\caption{Sensitivity to EoS threshold $\beta$. MSE ($\downarrow$) and QCE ($\downarrow$) across UCI datasets. $^*$ marks the default. \textbf{Bold} = best per row.}
+\label{tab:sensitivity_tau}
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{llrrrrrrrr}
+\toprule
+Dataset & Metric & \multicolumn{4}{c}{DICE} & \multicolumn{4}{c}{REPUL} \\
+\cmidrule(lr){3-6} \cmidrule(lr){7-10}
+& & 0.7 & 0.8 & 0.9$^*$ & 1.0 & 0.7 & 0.8 & 0.9$^*$ & 1.0 \\
+\midrule
+Pumadyn 
+& MSE & \textbf{0.08} & \textbf{0.08} & \textbf{0.08} & \textbf{0.08} & \textbf{0.09} & \textbf{0.09} & \textbf{0.09} & 0.10 \\
+& QCE & 0.12 & 0.12 & \textbf{0.08} & 0.12 & 0.10 & 0.10 & 0.07 & \textbf{0.04} \\
+\midrule
+Concrete 
+& MSE & 22.16 & 22.16 & \textbf{21.84} & 22.06 & 23.45 & 23.45 & \textbf{21.84} & 25.43 \\
+& QCE & 0.21 & 0.21 & \textbf{0.14} & 0.21 & 0.17 & 0.17 & \textbf{0.13} & 0.14 \\
+\midrule
+Airfoil 
+& MSE & 5.49 & 5.48 & \textbf{5.01} & 5.43 & 5.28 & 5.28 & \textbf{5.04} & 5.75 \\
+& QCE & \textbf{0.18} & \textbf{0.18} & \textbf{0.18} & 0.19 & \textbf{0.16} & \textbf{0.16} & 0.20 & \textbf{0.16} \\
+\midrule
+Slump 
+& MSE & 36.09 & \textbf{36.08} & 36.14 & 36.14 & 38.16 & \textbf{38.01} & \textbf{38.01} & 38.23 \\
+& QCE & \textbf{0.22} & \textbf{0.22} & \textbf{0.22} & \textbf{0.22} & \textbf{0.23} & \textbf{0.23} & \textbf{0.23} & \textbf{0.23} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\end{document}
+\endinput
+%%
+%% End of file `sample-sigconf.tex'.
