@@ -17,6 +17,8 @@ Run all reads in parallel:
 
 **Literature:** Read every `.tex` file under `./papers/literature_reviews/`. If a file is long, read the first 100 lines first; read the rest on demand.
 
+**Citation style:** Read `./papers/citation_style.md` — follow these rules for all new `.bib` entries.
+
 **Citations:** Read `./papers/references.bib`.
 
 **Results:** Read every `.json` file under `./output/metric/`. These contain AUROC scores keyed by `model_engine` → `uq_engine`.
