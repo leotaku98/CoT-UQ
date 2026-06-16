@@ -1,0 +1,641 @@
+\section{Expressing Black Box LLM Uncertainty}
+
+\subsection{Overview of Hallucination Detection Methods}
+
+We formulate hallucination detection as a binary classification problem in which a confidence scorer $\hat{s}(y_i; \cdot) \in [0,1]$ estimates the reliability of an LLM response $y_i$ generated from prompt $x_i$. A hallucination is predicted when the confidence score falls below a threshold $\tau$, producing a binary decision $\hat{h}(y_i; \cdot, \tau) = {I}(\hat{s}(y_i; \cdot) < \tau)$. Ground-truth hallucination labels are determined by comparing generated responses to reference answers $y_i^*$ through an oracle grading function $h(y_i; y_i^*, x_i)$, which is used only for offline evaluation. Since reference answers are unavailable at generation time, the goal is to approximate this oracle using uncertainty-based signals derived directly from model outputs.
+
+We consider several black-box uncertainty quantification (UQ) scorers that estimate response-level confidence by measuring semantic consistency across multiple responses generated from the same prompt. For each prompt $x_i$, we generate $m$ candidate responses $\tilde{\mathbf{y}}_i = \{\tilde{y}_{i1}, \ldots, \tilde{y}_{im}\}$ using stochastic decoding and compare them with the original response $y_i$. These methods rely on the intuition that hallucinated responses exhibit greater variability and lower semantic consistency than factual responses.
+
+The first method, Exact Match Rate (EMR), measures the proportion of candidate responses that exactly match the original response. EMR is effective in closed-form tasks with unique answers, as high agreement among sampled responses indicates stability and confidence. However, EMR is sensitive to lexical variation and performs poorly in free-form generation settings.
+
+Non-Contradiction Probability (NCP) extends this idea by measuring semantic consistency using a natural language inference (NLI) model. Instead of exact matching, NCP computes the probability that the original response does not contradict candidate responses. Bidirectional contradiction probabilities are averaged to obtain a non-contradiction score, providing a more flexible and semantically meaningful measure of consistency. This approach captures logical disagreement between responses and is less sensitive to surface-level wording differences.
+
+BERTScore Confidence (BSC) evaluates similarity between responses using contextualized token embeddings. It computes the average BERTScore F1 similarity between the original response and candidate responses, capturing semantic similarity at the token level. BSC is robust to paraphrasing and lexical variation, making it suitable for free-form generation tasks, although it primarily measures surface-level semantic overlap rather than logical consistency.
+
+Normalized Cosine Similarity (NCS) measures similarity in sentence embedding space using a sentence transformer. Responses are mapped to a vector space, and cosine similarity is computed between the original response and candidate responses. The normalized cosine similarity provides a smooth and interpretable confidence score that reflects semantic closeness in embedding space, offering a computationally efficient alternative to NLI-based methods.
+
+Finally, Normalized Semantic Negentropy (NSN) is derived from semantic entropy, which measures the diversity of meanings across all generated responses. Responses are clustered using mutual entailment, and entropy is computed over the cluster distribution. NSN normalizes this entropy to produce a confidence score in $[0,1]$, where higher values indicate more consistent semantic clusters and therefore higher confidence. Unlike other methods, NSN does not distinguish between original and candidate responses and instead evaluates the overall semantic stability of the response set, providing a principled measure of uncertainty in free-form generation.
+
+Together, these black-box UQ scorers capture different aspects of response consistency, including exact agreement, logical contradiction, semantic similarity, embedding similarity, and meaning-level uncertainty, enabling a comprehensive evaluation of hallucination detection signals in large language models.
+
+
+\subsection{CAN LLMS EXPRESS THEIR UNCERTAINTY?
+AN EMPIRICAL EVALUATION OF CONFIDENCE ELICITATION IN LLMS}
+The paper introduces a comprehensive way to calcualte llm uncertainty via prompt, sampling and aggregation methods.
+\textbf{prompting methods}
+Prompting strategies are designed to guide LLMs in expressing their confidence in a human-interpretable manner. Xiong et al. (2024) propose five prompting methods. The \textit{Vanilla} approach simply asks the model to provide an answer along with its confidence. The \textit{Chain-of-Thought} (CoT) method encourages step-by-step reasoning before the model produces a final answer and confidence score, which can improve accuracy. The \textit{Self-Probing} approach requires the model to review its previous answer in a separate session and then estimate confidence, exploiting the observation that reviewing can help identify mistakes. In the \textit{Multi-Step} strategy, confidence is assessed for each reasoning step and then aggregated to compute a final score. Lastly, the \textit{Top-K} approach requests the model to produce the K most likely answers with corresponding confidences, which serves to normalize overconfidence by considering multiple plausible outputs. Collectively, these strategies are inspired by human expert elicitation and emphasize semantic understanding and structured reasoning rather than relying solely on token-level probabilities.
+
+\textbf{Sampling Methods}
+
+Sampling methods are used to capture epistemic uncertainty by generating multiple outputs for the same query. In the \textit{Self-Random} method, the model’s inherent stochasticity, controlled via the temperature parameter, is leveraged to produce diverse responses. \textit{Prompting or paraphrasing} involves rewording the same question in different ways to probe the model’s sensitivity to phrasing. The \textit{Misleading} method introduces subtle cues or suggestions that may challenge the model’s answer, simulating how humans adjust their responses when uncertain. These sampling strategies allow the framework to quantify the variability of model responses, which is a crucial signal of uncertainty.
+
+\textbf{Aggregation Techniques}
+
+Aggregation techniques aim to combine multiple model outputs into a single confidence estimate. The \textit{Consistency} method measures the fraction of sampled outputs that match the primary answer, with higher agreement indicating higher confidence. The \textit{Avg-Conf} method combines consistency information with verbalized confidence scores to compute a weighted confidence measure. The \textit{Pair-Rank} strategy, designed for Top-K outputs, relies on the relative ranking of answers rather than raw verbalized confidence. By evaluating the ordering of candidate answers across multiple outputs and applying a maximum likelihood-inspired approach, this method captures subtle cues of model certainty that may not be evident in individual confidence statements.
+
+\textbf{Experimental Evaluation}
+
+The proposed framework was evaluated on tasks involving confidence calibration and failure prediction. Experiments were conducted using eight datasets that cover commonsense reasoning, arithmetic tasks, and professional knowledge domains. Five widely-used LLMs, including GPT-4 and LLaMA 2 Chat, were benchmarked. Results indicate that LLMs tend to be overconfident when verbalizing their confidence. Prompting strategies such as CoT and Self-Probing were found to partially mitigate overconfidence. Furthermore, combining sampling strategies with aggregation techniques improved failure prediction, particularly on arithmetic reasoning tasks. Black-box methods performed competitively with white-box approaches, with AUROC gaps as narrow as 0.522 to 0.605, although no single method consistently outperformed others across all tasks, and challenges remained for tasks requiring specialized professional knowledge.
+
+
+
+\subsection{Can LLMs Learn Uncertainty on Their Own? Expressing Uncertainty Effectively in A Self-Training Manner}
+Uncertainty estimation has become an important research direction in large language models (LLMs) because modern models often produce fluent but overconfident responses, even when they are incorrect. Prior work has explored several approaches to quantify uncertainty, such as predictive entropy, sampling-based methods, and semantic consistency across multiple generations. However, most of these techniques focus on estimating uncertainty from model outputs rather than enabling the model to express uncertainty explicitly in natural language. This limitation reduces the practical usefulness of uncertainty signals in real-world human–AI interactions.
+
+Uncertainty-Aware Instruction Tuning (UaIT) addresses this gap by training LLMs to express calibrated confidence along with their answers. The central idea of UaIT is to transform internal uncertainty signals into explicit outputs through instruction tuning. The method first generates responses to a set of questions using a base LLM and then estimates the uncertainty of each response using a semantic-aware metric called SAR (Semantic Aware Response). SAR extends traditional predictive entropy by assigning different importance weights to tokens and responses based on their semantic contribution. By considering both token-level probability and semantic relevance, SAR produces a more fine-grained uncertainty score for free-form text generation.
+
+After estimating uncertainty, UaIT constructs a training dataset by pairing each generated answer with a confidence score derived from the uncertainty estimate. To improve data quality, the method filters samples according to the consistency between answer correctness and confidence level. Specifically, it retains examples where correct answers correspond to high confidence and incorrect answers correspond to low confidence. This filtering process produces a distilled dataset containing prompts, questions, answers, and associated confidence scores. The model is then fine-tuned using standard instruction tuning so that it learns to generate both the answer and the corresponding confidence level.
+
+An important design principle of UaIT is that it does not attempt to change the model’s factual knowledge. Instead, the model is trained on its own generated answers, with the goal of improving self-awareness rather than modifying beliefs. Through this process, the model learns to align its expressed confidence with its internal uncertainty signals. As a result, UaIT enables LLMs to produce answers accompanied by meaningful confidence estimates, which can support downstream applications such as human decision support, reliability assessment, and adaptive system pipelines.
+
+
+\subsection{Selectively Answering Ambiguous Questions}
+
+This work studies calibration in question answering (QA) systems with a focus on selective answering under ambiguous questions. A predictor is considered well-calibrated if its confidence scores accurately reflect the probability that a prediction is correct. In the context of selective question answering, confidence scores allow the model to abstain from answering when uncertainty is high, thereby reducing incorrect responses and improving reliability in user-facing systems.
+
+Formally, each question-answer pair $(q, a)$ is assigned a confidence score $s(q, a)$, and the system produces an answer only when the confidence exceeds a threshold $\tau$. Otherwise, the model abstains. This selective prediction framework enables a trade-off between coverage and accuracy, allowing the system to answer only when it is sufficiently confident. A natural choice of confidence score is the conditional probability $P(a \mid q)$ produced by the language model.
+
+A key challenge arises in information-seeking question answering tasks, such as Natural Questions, AmbigQA, and SituatedQA, where questions may be ambiguous. In such settings, answering a question requires determining both the intended meaning of the question (denotation) and the correct answer. This process can be represented probabilistically as:
+
+\begin{equation}
+P(a \mid q) = \sum_d P(a \mid d) P(d \mid q)
+\end{equation}
+
+where $d$ represents a possible denotation of the question. This formulation highlights that uncertainty can arise not only from answer prediction but also from ambiguity in interpreting the question. Prior work has studied calibration in language models, but it remains unclear whether these findings extend to ambiguous question answering scenarios.
+
+To estimate confidence scores, the paper reviews how language models generate answers. A language model defines a probability distribution over token sequences by factorizing the sequence probability using the chain rule. In QA, the model generates a sequence conditioned on the question and then applies a normalization or extraction function to map the generated sequence to an answer space. This extraction step introduces additional complexity in estimating confidence.
+
+The most straightforward confidence estimation method is likelihood-based scoring, which computes the probability of the generated answer sequence. However, this approach has several limitations. First, inference-time modifications such as temperature scaling, nucleus sampling, and top-k sampling alter the output distribution, making likelihood an unreliable confidence measure. Second, the autoregressive likelihood formulation may leak probability mass to infinite sequences, making it an imperfect representation of a valid probability distribution. Third, likelihood does not account for the answer extraction step, which requires marginalizing over all possible generated sequences, an intractable process in practice.
+
+To address these limitations, the paper proposes sampling-based confidence estimation methods that measure the dispersion of model outputs. These methods rely on generating multiple samples and analyzing the consistency of the answers using an Index of Qualitative Variation (IQV). Three main approaches are considered.
+
+The first method, sampling repetition, measures how frequently the greedy answer appears among sampled outputs. A higher repetition rate indicates greater confidence, as consistent outputs suggest lower uncertainty. The second method, sampling diversity, computes confidence based on the number of unique answers among samples. A higher diversity indicates greater uncertainty, while consistent outputs indicate higher confidence. The third method, self-verification, prompts the language model to evaluate whether the generated answer is correct by scoring the probability of a ``True'' response given the question and possible answers. This approach allows the model to assess its own confidence.
+
+This paper proposes a sampling-based calibration framework for selective question answering with large language models, with a particular focus on handling ambiguous and unambiguous questions. The core method replaces traditional likelihood-based confidence estimation with sampling-based confidence scores that measure the consistency of model outputs across multiple generations. Specifically, the approach uses sampling repetition, sampling diversity, and self-verification to estimate the confidence of predicted answers and enable selective answering, where the model abstains when uncertainty is high.
+
+The proposed method captures epistemic and denotational uncertainty through output variation. Sampling repetition captures epistemic uncertainty by measuring how consistently the model produces the same answer across multiple samples, which reflects the model’s internal confidence in its knowledge. Sampling diversity captures overall uncertainty by measuring the dispersion of generated answers, where higher diversity indicates lower confidence. In the ambiguous question setting, the sampling process also captures denotational uncertainty by implicitly sampling over possible interpretations of the question and their corresponding answers. As a result, the method provides a practical way to estimate uncertainty without requiring access to model internals or explicit probability calibration.
+
+The method is evaluated using selective question answering metrics that assess both calibration and practical usability. Expected Calibration Error (ECE) measures how closely confidence scores match true correctness probabilities, ROC-AUC evaluates the ability of confidence scores to distinguish correct from incorrect answers, and Coverage@Accuracy measures how many questions can be answered while maintaining a target accuracy threshold. These metrics jointly evaluate absolute calibration quality, uncertainty discrimination, and real-world selective answering performance. Experiments on TriviaQA, NQ-Open, AmbigQA, and SituatedQA demonstrate that sampling-based methods consistently outperform likelihood-based confidence estimation, particularly in the presence of ambiguity.
+
+The separation between unambiguous and ambiguous questions is essential because they represent fundamentally different sources of uncertainty. Unambiguous questions primarily involve epistemic uncertainty, where the main challenge is whether the model knows the correct answer. This setting allows the evaluation of basic calibration properties and establishes a performance baseline. In contrast, ambiguous questions introduce denotational uncertainty, where multiple interpretations of the question lead to multiple valid answers. Evaluating both settings allows the study to isolate the effects of ambiguity and demonstrate that sampling-based confidence estimation becomes more important as denotational uncertainty increases. This distinction also reflects real-world applications, where many user queries are inherently ambiguous and require disambiguation before answering.
+
+Overall, the paper shows that likelihood-based confidence estimation is insufficient for selective question answering, especially in ambiguous scenarios. Sampling-based confidence estimation provides a more reliable and practical approach by capturing output consistency and variation, enabling language models to selectively answer questions while maintaining high accuracy and better calibration in both unambiguous and ambiguous environments.
+
+
+\subsection{Generating with Confidence: Uncertainty Quantification for
+Black-box Large Language Models
+}
+
+\textbf{Motivation and Problem Definition}
+
+The primary motivation behind the work of Lin et al. is the growing reliance on black-box LLMs such as GPT-style models, where internal probability distributions and hidden states are inaccessible. In such settings, traditional white-box uncertainty quantification methods cannot be applied, as they require access to model internals. This limitation creates a significant challenge in evaluating the reliability of generated responses, particularly when LLMs produce confident but incorrect answers.
+
+The authors frame uncertainty quantification as the problem of estimating the reliability of generated responses given only input-output access to the model. Specifically, for an input question, the LLM produces multiple responses through stochastic sampling. The goal is to compute two quantities: question-level uncertainty and response-level confidence. Question-level uncertainty reflects how ambiguous or difficult the question is, while response-level confidence measures the likelihood that a specific answer is correct. This distinction allows the framework to capture both overall uncertainty in the problem and the reliability of individual responses.
+
+\textbf{Overall Framework}
+
+The proposed framework follows a three-stage pipeline consisting of response generation, similarity computation, and uncertainty estimation. First, multiple responses are generated for each input using stochastic sampling strategies such as temperature sampling or nucleus sampling. This step produces a diverse set of candidate answers that reflect the model's uncertainty in the output space. The diversity of these responses provides valuable information about the model's confidence in the answer.
+
+Second, pairwise similarity between responses is computed to measure semantic agreement. The intuition is that correct answers tend to be consistent across multiple generations, while incorrect or uncertain answers tend to vary significantly. By measuring similarity between responses, the framework captures the level of agreement among generated outputs.
+
+Finally, similarity information is converted into uncertainty and confidence scores using graph-based methods. A similarity matrix is constructed where each response is treated as a node and pairwise similarities form weighted edges. Graph-theoretic measures are then applied to estimate uncertainty and confidence. This pipeline allows uncertainty estimation to be performed without any access to model internals, making it suitable for black-box LLMs.
+
+
+A key component of the framework is the measurement of semantic similarity between generated responses. Lin et al. propose two main approaches: lexical similarity and natural language inference (NLI)-based similarity.
+
+Lexical similarity is computed using Jaccard similarity, which measures the overlap of words between responses. This method is simple and computationally efficient, making it suitable for large-scale evaluation. However, lexical similarity fails to capture deeper semantic relationships and may incorrectly treat semantically different responses as similar if they share common words.
+
+To address this limitation, the authors introduce NLI-based similarity. In this approach, a pretrained natural language inference model is used to estimate entailment probabilities between responses. If one response entails another, they are considered semantically similar. This approach captures deeper semantic relationships and can distinguish between agreement and contradiction. The authors emphasize that using an external NLI model does not violate the black-box assumption, as it does not require access to LLM internals.
+
+Experimental results show that entailment-based similarity provides more reliable uncertainty estimates compared to lexical similarity. This finding highlights the importance of semantic agreement in measuring response consistency and reliability.
+
+
+After computing pairwise similarities, the framework constructs a similarity graph where each response is represented as a node and similarity scores form weighted edges. Several graph-based methods are then proposed to estimate uncertainty and confidence. The number of clusters represents uncertainty, and the number of nodes inside a cluster represents confidence.
+
+The first method is based on semantic sets, which cluster similar responses into groups representing distinct meanings. The number of semantic sets reflects the diversity of generated answers, with more clusters indicating higher uncertainty. This approach provides a simple and intuitive measure of uncertainty but relies on discrete clustering, which may fail to capture continuous variations in semantic similarity.
+
+To overcome this limitation, the authors introduce an eigenvalue-based method using the graph Laplacian. In this approach, eigenvalues of the Laplacian matrix are used to estimate the number of clusters in a continuous manner. Small eigenvalues indicate multiple distinct clusters, corresponding to higher uncertainty. This method provides a more refined and mathematically grounded estimate of uncertainty compared to semantic sets.
+
+The degree-based method computes the connectivity of each response in the similarity graph. Responses that are highly connected to others are considered more reliable, while isolated responses are considered less reliable. Confidence is computed based on the degree of each node, and uncertainty is derived from the overall connectivity of the graph.
+
+The eccentricity-based method embeds responses into a low-dimensional space using graph eigenvectors and measures the distance of each response from the cluster center. Responses closer to the center are considered more reliable, while distant responses are considered uncertain. This geometric interpretation provides an intuitive understanding of confidence as the centrality of a response in the similarity space.
+
+These graph-based methods provide flexible and interpretable ways to estimate uncertainty and confidence in black-box LLMs.
+
+
+Lin et al. evaluate their framework on multiple question answering datasets, including CoQA, TriviaQA, and Natural Questions. These datasets provide a range of difficulty levels and allow systematic evaluation of uncertainty estimation methods.
+
+The authors use multiple LLMs, including OPT-13B, LLaMA-13B, LLaMA2-13B, and GPT-3.5-turbo, to demonstrate that the proposed methods generalize across different models. This evaluation setup ensures that the framework is not limited to a specific architecture or training paradigm.
+
+Two main evaluation metrics are used: AUROC and AUARC. AUROC measures the ability of confidence scores to distinguish between correct and incorrect answers, while AUARC measures how accuracy improves when uncertain answers are rejected. AUARC is particularly important because it reflects the practical usefulness of uncertainty estimation in selective answering scenarios.
+
+To determine correctness, the authors use GPT-3.5 as an automated evaluator, comparing generated answers with reference answers and assigning correctness scores. Manual verification shows high agreement with human judgment, ensuring the reliability of the evaluation process.
+
+
+The experimental results demonstrate that the proposed black-box uncertainty methods achieve strong performance across multiple datasets and models. Entailment-based similarity consistently outperforms lexical similarity, confirming that semantic agreement is crucial for reliable uncertainty estimation.
+
+The eigenvalue, degree, and eccentricity methods achieve comparable performance, indicating that the choice of similarity measure is more important than the specific graph-based method. Confidence-based methods perform better than uncertainty-based methods in predicting individual response correctness, highlighting the importance of response-level confidence estimation.
+
+Another important finding is that a small number of sampled responses is sufficient to achieve good performance. Even with three to five responses, the framework can significantly improve answer accuracy by rejecting uncertain outputs. This result suggests that the method is computationally efficient and practical for real-world deployment.
+
+The authors also show that their black-box methods can outperform some white-box uncertainty estimation methods, demonstrating the effectiveness of response similarity as a proxy for model confidence.
+
+
+The work of Lin et al. provides several important insights into uncertainty quantification for LLMs. First, response diversity contains valuable information about model confidence, and semantic agreement can serve as a reliable indicator of correctness. Second, black-box methods can achieve performance comparable to or better than white-box methods, challenging the assumption that access to model internals is necessary for uncertainty estimation.
+
+The framework also highlights the importance of selective answering, where uncertain responses are rejected to improve overall accuracy. This capability is particularly valuable in safety-critical applications, where incorrect answers must be avoided.
+
+Furthermore, the graph-based approach provides a flexible and interpretable way to model response relationships, making it suitable for various LLM applications beyond question answering.
+
+\subsection{Detecting hallucinations in large language models using semantic entropy}
+
+Hallucinations in large language models (LLMs) remain a major challenge in natural language generation, particularly in free-form question answering where users rely on generated responses for factual knowledge. Traditional definitions of hallucination broadly describe any incorrect or unfaithful content, but this category includes multiple distinct failure mechanisms, such as systematic errors from biased training data, reasoning failures, and stochastic instability in generation. Recent work narrows the focus to \textit{confabulations}, defined as fluent but incorrect answers that vary arbitrarily across repeated sampling of the same prompt. This phenomenon arises when a model lacks sufficient knowledge or certainty and produces semantically inconsistent outputs depending on stochastic decoding conditions such as random seed or temperature. Detecting confabulations is important because they represent a major source of incorrect answers and can be mitigated by refusing to answer or by triggering retrieval-based grounding when uncertainty is high.
+
+The proposed method introduces \textit{semantic entropy} to quantify uncertainty in free-form generation at the level of meaning rather than tokens. The approach samples multiple candidate answers from an LLM for each question and clusters them into semantically equivalent groups using bidirectional entailment. Two answers are placed in the same cluster if each entails the other, ensuring that clusters represent shared meanings rather than surface-level lexical similarity. Entailment detection is performed using natural language inference models or general-purpose LLMs capable of evaluating semantic relationships between sentences. After clustering, entropy is computed over the distribution of semantic clusters, producing a measure of semantic uncertainty. Low semantic entropy indicates consistent meanings across samples and therefore high confidence, whereas high semantic entropy reflects multiple conflicting meanings and signals potential confabulation. The method is unsupervised and does not require labeled training data, and a discrete approximation enables its application to black-box LLMs without access to token probabilities or hidden states.
+
+Experimental results demonstrate that semantic entropy effectively detects confabulations across multiple domains, including general knowledge, biomedical question answering, mathematical word problems, and biography generation. Evaluations show strong performance in predicting incorrect answers using AUROC and improving question-answering accuracy through selective rejection measured by AURAC. Compared with supervised embedding-based methods and self-evaluation approaches such as P(True), semantic entropy is more robust to domain shifts and unseen inputs, highlighting that confabulations contribute substantially to LLM errors and that semantic uncertainty provides a reliable signal for improving answer reliability.
+
+
+\subsection{QUANTIFYING UNCERTAINTY IN ANSWERS FROM ANY LANGUAGE MODEL AND ENHANCING THEIR TRUSTWORTHINESS}
+
+Recent work proposes black-box uncertainty estimation methods for large language models (LLMs) that aim to quantify the reliability of generated responses without access to model internals. One such approach introduces a framework that estimates the confidence of an LLM answer by combining extrinsic consistency measurements with intrinsic self-reflection signals. The goal is to assign a confidence score $C(x,y)$ to a generated response $y$ given an input prompt $x$, enabling more reliable deployment of LLMs in high-stakes applications.
+
+The method consists of two complementary components: \emph{Observed Consistency} and \emph{Self-reflection Certainty}. Observed Consistency measures how stable an LLM answer is under multiple stochastic generations. Given an input question, the LLM is prompted multiple times with higher temperature and chain-of-thought prompting to produce diverse candidate responses. These sampled outputs are then compared with the original answer using semantic similarity based on natural language inference (NLI), which detects entailment, neutrality, or contradiction between responses. The similarity scores are combined with an indicator function that captures exact matches, resulting in a consistency score that reflects how frequently the model produces semantically aligned outputs. A higher consistency score indicates lower uncertainty and greater confidence in the original answer.
+
+Self-reflection Certainty provides an intrinsic confidence signal by asking the LLM to evaluate the correctness of its own response through structured follow-up questions. Instead of using numerical confidence ratings, which tend to be overly optimistic, the model is asked to select among multiple-choice options such as \emph{Correct}, \emph{Incorrect}, or \emph{Not sure}. These responses are converted into numerical scores and averaged to produce a self-reported certainty measure. This component captures the model's internal reasoning and evaluation capability, which can identify incorrect answers even when consistency remains high.
+
+The final confidence score is obtained by combining Observed Consistency and Self-reflection Certainty using a weighted average. This hybrid approach leverages both external behavioral signals and internal self-assessment, producing a more reliable uncertainty estimate for black-box LLM outputs.
+
+\textbf{Experimental Evaluation of Black-box LLM Uncertainty}
+
+The proposed method is evaluated on several question-answering benchmarks, including GSM8K, SVAMP, CommonsenseQA, and TriviaQA, where ground-truth answers are available to assess correctness. Experiments are conducted using Text-Davinci-003 and GPT-3.5 Turbo, with confidence scores computed from multiple sampled outputs and self-reflection prompts. The quality of uncertainty estimation is measured using the Area Under the Receiver Operating Characteristic Curve (AUROC), which evaluates whether correct answers receive higher confidence scores than incorrect ones.
+
+Results show that the combined consistency and self-reflection framework significantly outperforms baseline uncertainty estimation methods, including likelihood-based uncertainty, temperature sampling, and self-reflection alone. Across all datasets and models, the proposed method achieves higher AUROC values, indicating better alignment between confidence scores and answer correctness. This demonstrates that combining multiple sampling consistency with intrinsic self-evaluation leads to more calibrated uncertainty estimates in black-box LLM settings.
+
+Beyond calibration, the method is also applied to improve answer reliability. By generating multiple candidate responses and selecting the one with the highest confidence score, the approach consistently improves accuracy across datasets compared to using a single deterministic response. Although this strategy requires additional inference computation, the accuracy gains make it suitable for high-stakes applications where reliability is critical.
+
+The study further investigates the reliability of LLM-based automated evaluation. Experiments show that GPT-4, when used as an evaluator for question-answering and summarization tasks, achieves only moderate agreement with human judgments, with an accuracy of approximately 83.67\% in correctness classification and noticeable error in summary quality evaluation. These findings highlight that LLM-based evaluation is itself uncertain and reinforces the importance of confidence estimation in both generation and evaluation processes.
+
+Overall, this work demonstrates that black-box uncertainty estimation based on response consistency and self-reflection can effectively improve confidence calibration, enhance answer reliability, and support more trustworthy automated evaluation in large language models.
+
+
+\subsection{SELFCHECKGPT: Zero-Resource Black-Box Hallucination Detection
+for Generative Large Language Models}
+
+SelfCheckGPT is a black-box hallucination detection framework designed to assess the factuality of Large Language Model (LLM) outputs without requiring access to token-level probabilities, model parameters, or external knowledge bases. Unlike grey-box approaches that rely on output probabilities or entropy, SelfCheckGPT operates solely on generated text responses, making it suitable for modern LLMs accessed through limited APIs. The central idea behind SelfCheckGPT is that factual knowledge tends to remain consistent across multiple stochastic generations, whereas hallucinated content is more likely to produce inconsistent or contradictory responses. Based on this intuition, the method generates multiple responses for the same prompt and evaluates the consistency between the main response and sampled responses to estimate hallucination scores at the sentence level.
+
+Formally, given a response $R$ generated by an LLM for a prompt, SelfCheckGPT produces $N$ additional stochastic responses and computes a hallucination score for each sentence by measuring consistency with the sampled outputs. Several variants are proposed to quantify this consistency. The BERTScore-based variant measures semantic similarity between sentences in the main response and sampled responses, assigning higher hallucination scores to sentences with low similarity. The question-answering (QA) variant generates multiple-choice questions from the response and evaluates whether sampled responses provide consistent answers, treating disagreement as a signal of hallucination. The $n$-gram variant builds a lightweight language model from sampled responses and estimates token likelihoods to detect unlikely or rare tokens. The Natural Language Inference (NLI) variant measures contradiction probabilities between sentences and sampled responses, while the prompt-based variant directly queries an LLM to judge whether a sentence is supported by the sampled context. These variants provide flexible consistency-based measures that do not rely on model internals.
+
+To evaluate the effectiveness of SelfCheckGPT, the authors construct a new hallucination detection dataset based on GPT-3-generated Wikipedia-style articles using the WikiBio dataset. A total of 238 passages and 1,908 sentences were generated and manually annotated at the sentence level into accurate, minor inaccurate, and major inaccurate categories. Passage-level factuality scores were obtained by averaging sentence-level annotations, and inter-annotator agreement showed moderate to substantial reliability. The dataset contains a high proportion of hallucinated sentences, including cases of total hallucination where entire passages are fabricated.
+
+Experimental results demonstrate that SelfCheckGPT significantly outperforms both grey-box and proxy-based black-box approaches in sentence-level hallucination detection and passage-level factuality ranking. While token probability and entropy from the generating LLM provide strong baselines, proxy LLMs such as open-source models perform poorly due to differences in generation patterns. In contrast, SelfCheckGPT variants consistently achieve higher AUC-PR and correlation with human judgments. The prompt-based variant achieves the best overall performance, followed closely by the NLI-based approach, which offers a better trade-off between computational cost and accuracy. Additionally, the $n$-gram variant shows that identifying rare or low-frequency tokens across samples is an effective signal of hallucination.
+
+Overall, SelfCheckGPT demonstrates that self-consistency across multiple stochastic generations is a powerful indicator of factuality in LLM outputs. The framework provides a practical and model-agnostic solution for hallucination detection, achieving strong empirical performance without relying on model internals or external databases, and establishes a strong baseline for black-box LLM uncertainty and factuality assessment.
+
+\subsection{To Believe or Not to Believe Your LLM}
+
+This work studies how to quantify epistemic uncertainty in large language models (LLMs) using information-theoretic tools, particularly mutual information (MI), derived from an iterative prompting procedure.
+
+
+We distinguish between two distributions:
+\begin{itemize}
+    \item $P$: the ground-truth conditional distribution of valid responses given a query $x$, representing the true language or human response behavior.
+    \item $\text{LM} \equiv Q$: the language model distribution, representing how the LLM generates responses.
+\end{itemize}
+
+Since $P$ is unknown in practice, all computable quantities must be derived from $Q$.
+
+
+To study uncertainty across multiple responses, the model constructs a pseudo-joint distribution via iterative prompting:
+\[
+\widetilde Q(y_1,\dots,y_n)
+=
+Q(y_1 \mid x)
+\prod_{i=2}^n Q(y_i \mid x, y_1,\dots,y_{i-1})
+\]
+This models how the LLM responds when repeatedly conditioned on its own previous outputs.
+
+
+To quantify dependency between multiple responses, the product-of-marginals distribution is defined as:
+\[
+\widetilde Q^{\otimes}(y_1,\dots,y_n)
+=
+\prod_{i=1}^n \widetilde Q_i(y_i),
+\quad
+\widetilde Q_i(y_i)
+=
+\sum_{y_{\setminus i}} \widetilde Q(y_1,\dots,y_n)
+\]
+
+Mutual information is then:
+\[
+I(\widetilde Q)
+=
+D_{\mathrm{KL}}(\widetilde Q \,\|\, \widetilde Q^{\otimes})
+\]
+
+This measures how strongly multiple sampled responses depend on each other.
+
+
+Mutual information captures epistemic uncertainty:
+\begin{itemize}
+    \item Low epistemic uncertainty: responses are stable and nearly independent
+    \[
+    I(\widetilde Q) \approx 0
+    \]
+    \item High epistemic uncertainty: responses depend strongly on previous outputs
+    \[
+    I(\widetilde Q) \gg 0
+    \]
+\end{itemize}
+
+Thus, MI measures sensitivity of the model to its own context, reflecting lack of stable knowledge.
+
+
+Since $\widetilde Q$ has large or infinite support, MI is estimated from finite samples:
+\begin{itemize}
+    \item Sample multiple response tuples via iterative prompting.
+    \item Construct empirical joint and marginal distributions.
+    \item Compute a smoothed MI estimator using these empirical distributions.
+\end{itemize}
+
+Estimation error is controlled by the missing mass, i.e., probability mass of unseen samples.
+
+
+To avoid over-counting lexical variations, responses are clustered using a similarity function $s$ and threshold $\tau$. This induces semantic equivalence classes.
+
+A clustered distribution is defined as:
+\[
+\widetilde Q'(C) = \sum_{y \in C} \widetilde Q(y)
+\]
+
+MI is then computed on $\widetilde Q'$, ensuring it reflects semantic rather than lexical variation.
+
+
+The estimated MI defines a hallucination score:
+\[
+\widehat I_k(x)
+\]
+
+An abstention policy is:
+\[
+a_\lambda(x) =
+\begin{cases}
+0, & \widehat I_k(x) < \lambda \\
+1, & \widehat I_k(x) \ge \lambda
+\end{cases}
+\]
+
+where $\lambda$ is selected via calibration.
+
+\begin{itemize}
+    \item Low MI $\Rightarrow$ reliable prediction.
+    \item High MI $\Rightarrow$ likely hallucination.
+\end{itemize}
+
+
+\begin{itemize}
+    \item Likelihood-based: fails in multi-answer settings.
+    \item Entropy-based: mixes epistemic and aleatoric uncertainty.
+    \item MI-based: isolates epistemic uncertainty via dependence between outputs.
+\end{itemize}
+
+Epistemic uncertainty in LLMs can be measured by how much their outputs change when conditioned on previous outputs. Mutual information quantifies this dependence and can be estimated efficiently using iterative prompting and finite samples.
+
+
+\subsection{Chain-of-Thought Enhanced Uncertainty Quantification (CoT-UQ)}
+
+CoT-UQ is an uncertainty quantification framework that leverages the intermediate reasoning process generated by a large language model (LLM) during Chain-of-Thought (CoT) inference. Unlike traditional uncertainty estimation methods that only evaluate the confidence of the final answer, CoT-UQ incorporates the confidence and importance of reasoning steps produced throughout generation.
+
+The key idea is that CoT reasoning is part of the model output distribution. Given a prompt $q$, the model generates a sequence
+\[
+\hat y = (s_1, s_2, \dots, s_k, a),
+\]
+where $s_1,\dots,s_k$ denote intermediate reasoning steps and $a$ is the final answer.
+
+CoT-UQ consists of two stages.
+
+
+First, the model is prompted to generate explicit step-by-step reasoning using a Chain-of-Thought instruction such as
+\textit{``Let's think step by step''}.
+This produces reasoning steps
+\[
+s_{1:k} = (s_1,\dots,s_k).
+\]
+
+Next, informative keywords are extracted from each reasoning step. Let
+\[
+\{w_j^i\}_{j=1}^{n_i}
+\]
+denote the set of keywords extracted from step $s_i$. The complete keyword set is
+\[
+\mathcal K
+=
+\bigcup_{i=1}^k*-/+
+689
+\{w_j^i\}_{j=1}^{n_i}.
+\]
+
+Each keyword is then assigned an importance score
+\[
+t_j^i \in [1,10],
+\]
+which reflects its contribution to the final answer. The refined keyword representation becomes
+\[
+\mathcal K
+=
+\bigcup_{i=1}^k
+\{(w_j^i, t_j^i)\}_{j=1}^{n_i}.
+\]
+
+The purpose of this stage is to transform long reasoning trajectories into a compact representation containing only semantically important reasoning components.
+
+
+CoT-UQ integrates reasoning information into two uncertainty estimation paradigms: aggregated probabilities and self-evaluation.
+
+For aggregated probability methods, the probability of each keyword is computed using the token probabilities of the generated keyword sequence:
+\[
+p(\hat w)
+=
+\mathrm{Aggr}1357.
+240\Big(
+P(w_m \mid p,w_1,\dots,w_{m-1})
+\Big),
+\]
+where $\mathrm{Aggr}(\cdot)$ denotes an aggregation operator such as mean, minimum, or summation over token probabilities.
+
+The final confidence score is computed as an importance-weighted average:
+\[
+c
+=
+\frac{
+\sum_{i=1}^k \sum_{j=1}^{n_i}
+t_j^i \cdot p(\hat w_j^i)
+}{
+\sum_{i=1}^k \sum_{j=1}^{n_i}
+t_j^i
+}.
+\]
+
+This formulation prioritizes reasoning components that are both highly important and highly confident.
+
+For self-evaluation methods, the model estimates the probability that its answer is correct while conditioning on reasoning information:
+\[
+c
+=
+P(o=\texttt{True}),
+\qquad
+o = M(p^r(q,\hat y,z)),
+\]
+where
+\[
+z
+\in
+\{s_{1:k},\, s^*,\, \mathcal K,\, \mathcal K^*\}
+\]
+represents different forms of reasoning context.
+
+The method introduces four reasoning-aware self-evaluation strategies:
+
+\begin{itemize}
+    \item \textbf{ALLSteps}: use all reasoning steps;
+    \item \textbf{ALLKeywords}: use all extracted keywords;
+    \item \textbf{KEYStep}: use only the most important reasoning step;
+    \item \textbf{KEYKeywords}: use only high-importance keywords.
+\end{itemize}
+
+The most important reasoning step is selected by
+\[
+s^*
+=
+\arg\max_{1\le i\le k}
+\left(
+\frac{1}{n_i}
+\sum_{j=1}^{n_i}
+t_j^i
+\right),
+\]
+while the important keyword subset is defined as
+\[
+\mathcal K^*
+=
+\bigcup_{i=1}^k
+\left\{
+(w_j^i,t_j^i)
+~:~
+t_j^i \ge \tau
+\right\}_{j=1}^{n_i}.
+\]
+
+Conceptually, CoT-UQ shifts uncertainty estimation from an output-centric paradigm to a reasoning-centric paradigm. Traditional methods aggregate uncertainty uniformly across all generated tokens, whereas CoT-UQ selectively focuses on semantically important reasoning components. This allows the uncertainty estimator to better reflect reasoning consistency, logical reliability, and hallucination risk.
+
+Because Chain-of-Thought reasoning exposes the internal reasoning trajectory of the model, CoT-UQ provides a structured and semantically informed uncertainty signal that is unavailable in standard answer-only uncertainty estimation methods.
+
+
+\subsection{IUQ: Interrogative Uncertainty Quantification for Long-Form Large
+Language Model Generation}
+
+Large Language Models (LLMs) have demonstrated remarkable capabilities in long-form generation tasks, including biography generation, open-domain question answering, scientific explanation, and reasoning-intensive dialogue. Despite their strong linguistic fluency, modern LLMs frequently hallucinate factual information while maintaining coherent narrative structures. This issue becomes particularly challenging in long-form generation, where the autoregressive nature of language modeling encourages the continuation of previously generated context, regardless of whether earlier claims are factually correct.
+
+However, such approaches face major limitations in long-form generation. Firstly, token-level entropy becomes increasingly noisy as generation length grows, since the uncertainty estimates become dominated by syntactic and stylistic tokens rather than factual content. Secondly, consistency-based approaches assume that semantically consistent generations imply factual correctness. In practice, autoregressive models can fabricate coherent narratives that remain internally consistent across samples, leading to overconfident hallucinations.
+
+To address these limitations, IUQ introduces an interrogative uncertainty quantification framework that explicitly separates factual knowledge from generative context through claim-level interrogation.
+
+
+IUQ formulates uncertainty quantification as an interrogation process involving two conceptual components: a responder and an interrogator. Given a prompt $x$, the responder generates long-form responses, while the interrogator probes the factual consistency of the generated claims through independent question-answering.
+
+Formally, for a language model $M$ and prompt $x$, IUQ first samples a set of long-form responses:
+\begin{equation}
+\mathcal{R}=\{R_1,\dots,R_N\}, \quad R_i=M_{T=t}(x),
+\end{equation}
+where $T=t$ denotes stochastic decoding with temperature $t$.
+
+Each response is subsequently decomposed into a set of atomic factual claims:
+\begin{equation}
+\mathcal{C}^{R}=\{c_1,c_2,\dots,c_k\}.
+\end{equation}
+
+The decomposition process is performed using an LLM-based claim extractor following prior fact verification frameworks such as FActScore. The objective is to isolate semantically atomic factual statements from natural language generation.
+
+
+A key contribution of IUQ is the decoupling of claims from their original generative context. For each extracted claim $c_i$, the interrogator generates a set of independent factual questions:
+\begin{equation}
+\mathcal{Q}_{c_i}=\{q_1,q_2,\dots,q_{n_q}\},
+\end{equation}
+where each question probes a specific piece of information contained in the claim.
+
+For every question $q\in\mathcal{Q}_{c_i}$, multiple answers are sampled independently:
+\begin{equation}
+\mathcal{A}_{q}=\{a_1,a_2,\dots,a_{n_a}\}.
+\end{equation}
+
+The crucial intuition behind this process is that independently generated answers are no longer conditioned on the potentially fabricated narrative context of the original response. Consequently, the sampled answers provide a more faithful representation of the model's internal factual knowledge.
+
+
+IUQ introduces claim-level faithfulness to measure whether a generated claim is genuinely supported by the model's independently retrieved knowledge.
+
+Let $C_{i\leq}$ denote the set of all claims preceding and including claim $c_i$ within response $R$. IUQ estimates the contradiction ratio between the independently sampled answer set $\mathcal{A}_q$ and the contextual claim history $C_{i\leq}$ using the language model itself:
+\begin{equation}
+X(\mathcal{A}_q,C_{i\leq}),
+\end{equation}
+where $X$ represents the estimated percentage of contradiction.
+
+The faithfulness of claim $c_i$ is then defined as
+\begin{equation}
+F(c_i)=1-\frac{1}{|\mathcal{Q}_{c_i}|}
+\sum_{q\in\mathcal{Q}_{c_i}}
+X(\mathcal{A}_q,C_{i\leq}).
+\end{equation}
+
+A high faithfulness score indicates that the model consistently supports its own generated claims under independent interrogation, whereas a low score suggests that the claim may have been fabricated to preserve narrative coherence.
+
+The response-level faithfulness is obtained by averaging over all claims:
+\begin{equation}
+F(R)=\frac{1}{|\mathcal{C}^{R}|}
+\sum_{c_i\in\mathcal{C}^{R}}F(c_i).
+\end{equation}
+
+Finally, model-level faithfulness is computed by averaging over sampled responses and evaluation datasets:
+\begin{equation}
+F(M)=\frac{1}{|D|}
+\sum_{\mathcal{R}\in D}F(\mathcal{R}).
+\end{equation}
+
+This metric characterizes the overall tendency of an LLM to fabricate information during long-form generation.
+
+
+Beyond faithfulness estimation, IUQ further models uncertainty at the claim level by combining inter-sample consistency and intra-sample hallucination propagation.
+
+Following prior semantic consistency approaches , IUQ first computes the entailment-based consistency score:
+\begin{equation}
+S(c_i)=\frac{1}{N}\sum_{k=1}^{N}{1}[R^k\Rightarrow c_i],
+\end{equation}
+where ${1}[R^k\Rightarrow c_i]$ indicates whether sampled response $R^k$ semantically entails claim $c_i$.
+
+However, IUQ argues that semantic consistency alone is insufficient because hallucinated narratives may remain internally coherent. To model the autoregressive propagation of hallucinated context, IUQ introduces an influence weighting mechanism based on claim unfaithfulness:
+\begin{equation}
+W(c_i)=\sum_{j=1}^{i}(1-F(c_j))E(i-j),
+\end{equation}
+where $E$ is an exponential decay kernel:
+\begin{equation}
+E(i)=e^{-\lambda i}.
+\end{equation}
+
+This weighting propagates the influence of earlier unfaithful claims to subsequent claims, reflecting the sequential dependency structure of autoregressive generation.
+
+The final claim-level uncertainty score is defined as
+\begin{equation}
+U(c_i)=S(c_i)\cdot W(c_i).
+\end{equation}
+
+This formulation jointly captures semantic disagreement across sampled generations and contextual contamination introduced by hallucinated claims.
+
+
+IUQ additionally reformulates entropy-based uncertainty estimation through interrogative short-answer generation. Instead of computing predictive entropy over the original long-form response, IUQ evaluates entropy on independently generated answers associated with each claim.
+
+Given a claim $c_i$, the answer-level uncertainty is computed as
+\begin{equation}
+U_A(c_i)=
+\frac{1}{|\mathcal{Q}_{c_i}|}
+\sum_{q\in\mathcal{Q}_{c_i}}
+\frac{1}{|\mathcal{A}_q|}
+\sum_{a\in\mathcal{A}_q}H(a|c_i),
+\end{equation}
+where $H(a|c_i)$ denotes the token-level predictive entropy of answer $a$ conditioned on claim $c_i$.
+
+This formulation localizes entropy estimation to short factual responses, thereby reducing the influence of irrelevant syntactic variability and improving the interpretability of uncertainty estimates.
+
+
+IUQ is evaluated on two long-form factual generation benchmarks: FActScore and LongFact . The framework is tested across multiple LLM families, including GPT-4o, Qwen2, Gemma-3, Mistral, and LLaMA variants.
+
+Experimental results demonstrate that IUQ consistently outperforms existing white-box and black-box uncertainty estimation methods under AUROC and AUPRC evaluation metrics. Ablation studies further show that modeling sequential hallucination propagation through exponential decay kernels significantly improves uncertainty estimation performance.
+
+Moreover, the analysis of model-level faithfulness reveals that LLMs frequently interleave faithful and fabricated claims within the same generation, particularly on long-tail factual domains such as biography generation. These findings highlight the importance of interrogative probing for reliable uncertainty estimation in long-form LLM generation.
+
+
+
+\subsection{Chain-of-Thought Prompting Elicits Reasoning in Large Language Models}
+
+Chain-of-Thought (CoT) prompting is one of the most influential prompting paradigms for eliciting reasoning capabilities in large language models (LLMs). Unlike standard prompting that directly maps an input question to an output answer, CoT prompting augments few-shot exemplars with intermediate reasoning steps represented in natural language. The method reformulates the prompting structure from $\langle$input, output$\rangle$ to $\langle$input, reasoning chain, output$\rangle$, enabling the model to decompose complex problems into sequential intermediate decisions.
+
+The central motivation of CoT prompting is that many reasoning tasks naturally require multi-step inference. Tasks such as arithmetic reasoning, commonsense reasoning, and symbolic manipulation often involve latent intermediate states that are difficult to infer through direct next-token prediction. CoT hypothesize that sufficiently large LLMs possess latent reasoning capabilities that can be activated when the prompting format explicitly demonstrates step-by-step reasoning trajectories.
+
+The original work evaluates CoT prompting on three categories of reasoning tasks: arithmetic reasoning, commonsense reasoning, and symbolic reasoning. For arithmetic reasoning, the authors evaluate on GSM8K, SVAMP, ASDiv, AQuA, and MAWPS benchmarks. Instead of directly predicting numerical answers, the model is prompted to generate intermediate calculations and verbal reasoning processes before producing the final prediction. Experimental results demonstrate substantial performance gains on complex arithmetic datasets. In particular, PaLM 540B with only eight CoT exemplars achieves state-of-the-art performance on GSM8K, outperforming finetuned GPT-3 systems with verifiers. The study further shows that the performance gains become increasingly significant as the reasoning complexity of tasks increases. Simple one-step problems show limited improvement, whereas multi-step mathematical reasoning tasks exhibit dramatic gains.
+
+A major finding of the paper is that CoT prompting is an emergent capability associated with model scale. The authors observe that smaller models frequently generate fluent but logically invalid reasoning chains, often leading to worse performance than standard prompting. In contrast, models exceeding approximately 100B parameters begin to exhibit coherent multi-step reasoning behavior. This scaling phenomenon suggests that reasoning trajectories are not explicitly programmed but instead emerge naturally from large-scale language modeling.
+
+Beyond arithmetic tasks, the paper studies commonsense reasoning using datasets such as CommonsenseQA, StrategyQA, Date Understanding, Sports Understanding, and SayCan. CoT prompting consistently improves reasoning accuracy across these tasks. The authors demonstrate that the linguistic structure of reasoning chains allows CoT to generalize beyond mathematical computation into domains requiring world knowledge, causal inference, and planning. On StrategyQA, PaLM 540B with CoT prompting surpasses previous state-of-the-art systems.
+
+The paper also investigates symbolic reasoning tasks including coin-flip tracking and last-letter concatenation. These tasks require sequential symbolic manipulation rather than factual recall. The authors evaluate both in-domain and out-of-distribution generalization settings. Results show that CoT prompting enables strong performance even when test-time reasoning sequences are longer than those seen in demonstrations. This indicates that CoT facilitates a form of length generalization in sufficiently large LLMs.
+
+To better understand why CoT prompting works, conduct multiple ablation studies. First, they investigate whether simply generating equations without natural language reasoning is sufficient. Results show that equation-only prompting performs substantially worse on complex tasks such as GSM8K, suggesting that verbal intermediate reasoning contributes meaningfully beyond symbolic computation alone. Second, the authors test whether the benefit arises merely from allocating additional output tokens by replacing reasoning chains with meaningless dot sequences of equivalent length. This ``variable compute'' ablation fails to improve performance, indicating that the semantic content of reasoning steps is critical. Third, the paper evaluates ``chain-of-thought after answer'' prompting, where reasoning is generated only after the final prediction. This configuration performs similarly to the baseline, implying that the sequential generation of reasoning steps before the answer is essential for improving performance.
+
+The paper additionally studies the robustness of CoT prompting. Different annotators independently construct reasoning demonstrations for the same tasks, and the resulting prompts consistently outperform standard prompting despite stylistic variations. The authors further evaluate robustness across different exemplar sets, prompt orders, and model families, showing that the effectiveness of CoT prompting does not depend on a specific handcrafted template.
+
+Another important contribution of the work is the analysis of generated reasoning paths. The authors manually inspect reasoning chains produced by LaMDA 137B on GSM8K. Among correctly solved examples, nearly all reasoning chains are logically valid. For incorrect predictions, approximately half of the chains contain minor reasoning mistakes, while the remaining cases exhibit major semantic or logical failures. This analysis suggests that CoT traces provide an interpretable window into model reasoning behavior and allow researchers to localize reasoning failures at intermediate steps.
+
+The discussion section of the paper emphasizes that CoT prompting significantly expands the reasoning capabilities of large language models without requiring finetuning. The method operates entirely through prompting and demonstrates that standard prompting underestimates the latent reasoning ability of large-scale LLMs. However, the authors also acknowledge important limitations. First, generated reasoning chains do not necessarily reflect the true internal computation of the model. Second, reasoning traces may still contain hallucinations or logically invalid steps. Third, the emergence of CoT reasoning only at large model scales introduces substantial computational costs for deployment.
+
+
+\subsection{Tree of Thoughts}
+
+Tree of Thoughts (ToT) extends Chain-of-Thought (CoT) prompting by formulating reasoning as a tree-search process over intermediate reasoning steps, referred to as \emph{thoughts}. 
+Instead of generating a single reasoning trajectory autoregressively, ToT maintains multiple candidate reasoning states simultaneously and explores them through deliberate search procedures such as breadth-first search (BFS) or depth-first search (DFS). 
+Each state represents a partial solution composed of the input and the sequence of generated thoughts so far.
+
+The ToT framework consists of four main components: thought decomposition, thought generation, state evaluation, and search. 
+First, a problem is decomposed into coherent intermediate thought steps whose granularity depends on the task. 
+Second, given a current state, the language model generates multiple candidate thoughts either through independent sampling or sequential proposal prompts. 
+Third, the generated states are evaluated using the language model itself as a heuristic evaluator, producing value estimates such as ``sure'', ``maybe'', or ``impossible'' regarding whether the current reasoning path is likely to reach a correct solution. 
+Finally, search algorithms are used to retain promising reasoning branches while pruning weak candidates.
+
+Compared with standard CoT prompting, ToT enables explicit exploration, lookahead, and backtracking during inference. 
+This allows the model to recover from poor intermediate decisions and maintain multiple plausible reasoning trajectories before committing to a final answer. 
+Experiments on tasks requiring planning and combinatorial search, such as Game of 24, creative writing, and mini-crosswords, demonstrate that ToT substantially improves problem-solving performance over conventional prompting approaches.
+
+\subsection{Graph-based Uncertainty Metrics for Long-form Language Model Outputs}
+
+Uncertainty estimation for large language models (LLMs) has emerged as an important direction for improving reliability and mitigating hallucinations in generated outputs. Early work primarily focused on response-level uncertainty estimation through calibration techniques, confidence elicitation, or consistency-based approaches. Existing methods can broadly be categorized into white-box and black-box approaches. White-box approaches leverage model internals such as logits, hidden states, or activation patterns to estimate uncertainty, but are often impractical for proprietary API-based models.
+
+For black-box settings, uncertainty estimation methods commonly rely on output-level analysis. Verbalized confidence (VC) methods prompt the model to directly report its confidence for generated content and convert these verbalized expressions into numerical uncertainty estimates. However, empirical evidence suggests that language models are not consistently calibrated in self-reporting confidence. Self-consistency (SC) approaches instead estimate uncertainty through repeated stochastic sampling and measure agreement across generated outputs . Such methods generally demonstrate stronger empirical performance than verbalized confidence, particularly for factuality estimation.
+
+While effective, existing approaches largely operate at either the multiple-choice level or assign a single uncertainty estimate to an entire generated response . These coarse-grained estimates are insufficient for long-form generation tasks where outputs often contain mixtures of factual and hallucinated claims . To address this limitation, recent work has shifted toward claim-level uncertainty estimation, where uncertainty is evaluated for individual semantic units extracted from generated responses . These approaches typically construct a collection of claims from multiple sampled responses and estimate uncertainty according to the frequency with which each claim is reproduced across generations.
+
+More recent work extends this idea by explicitly modeling semantic relationships between responses and claims through graph representations. In these approaches, multiple generated responses are decomposed into atomic claims and organized into semantic entailment graphs, where edges represent entailment relationships between responses and claims. This perspective reveals that self-consistency can be interpreted as a special case of graph-based uncertainty estimation using degree centrality over claim nodes. Building on this observation, graph centrality measures including degree centrality, betweenness centrality, eigenvector centrality, PageRank, and closeness centrality have been explored as claim-level confidence estimators .
+
+Graph-based uncertainty estimation assumes that factual claims occupy more central positions within the semantic agreement structure induced by multiple sampled generations, while hallucinated claims tend to appear as isolated or weakly connected nodes. Under this framework, uncertainty estimation becomes a graph inference problem in which node importance serves as a proxy for factual reliability. Beyond uncertainty quantification, these methods can also be incorporated into decoding-time interventions by filtering claims with high estimated uncertainty and synthesizing the remaining low-uncertainty claims into a final response. Such approaches have demonstrated improved factuality–informativeness trade-offs in long-form generation, increasing factual precision while preserving a larger proportion of informative content.
+
+\subsection{Rethinking LLM Uncertainty: A Multi-Agent Approach to Estimating Black-Box Model Uncertainty}
+
+Recent work argues that uncertainty estimation in large language models (LLMs) should distinguish between a model's underlying knowledge and its ability to retrieve that knowledge under a particular prompt formulation. Traditional uncertainty estimation methods, such as self-consistency, repeatedly sample outputs from a single query and measure the variability of generated responses. While effective in capturing stochastic decoding uncertainty, these approaches implicitly assume that a single prompt provides an unbiased view of the model's internal knowledge state. However, growing evidence suggests that LLMs are highly sensitive to contextual variations, including paraphrases, formatting changes, and additional contextual information, which can substantially alter generated answers despite requiring the same underlying knowledge.
+
+To formalize this phenomenon, the authors introduce the notion of \emph{knowledge-preserving perturbations}. Given a target query, multiple semantically equivalent or compositionally related queries can be generated that require the same underlying knowledge to answer. Although these perturbations preserve the target knowledge, they often induce different answer distributions. The authors interpret this discrepancy as a retrieval problem rather than a knowledge problem. Specifically, they posit the existence of a latent ``true'' knowledge distribution representing the model's internal belief about a fact. Different prompt formulations act as noisy observations of this latent distribution, introducing retrieval biases that shift the probability assigned to the correct answer. Consequently, answer inconsistency across prompts may arise even when the model possesses the relevant knowledge.
+
+Building on this perspective, the paper proposes a multi-agent framework for uncertainty estimation. Instead of relying on repeated sampling from a single query, the method generates multiple knowledge-preserving perturbations and instantiates several agents from the same underlying model. Each agent receives a different query formulation and independently produces an answer. The collection of agents therefore provides diverse views of the same latent knowledge, each potentially affected by different retrieval biases.
+
+The framework further introduces iterative interactions among agents. During each interaction round, an agent is exposed to another agent's query and answer, together with its own reasoning history, and is allowed to revise its response. The authors hypothesize that these interactions serve as a mechanism for reducing retrieval bias. Under an idealized theoretical model, each agent's answer distribution can be viewed as the latent knowledge distribution plus an error term induced by contextual bias. If interactions are contractive in expectation, meaning that they gradually reduce divergence from the latent knowledge distribution, repeated interactions drive agents toward a shared representation of the underlying fact.
+
+A theoretical analysis is provided to motivate this intuition. Assuming that a latent knowledge distribution exists and that interaction updates reduce divergence from this distribution in expectation, the authors show that the average of sufficiently many interacting agents converges to the latent knowledge distribution. The proof treats retrieval errors as bounded random variables and relies on assumptions regarding contraction, bounded variance, and weak dependence among diverse query perturbations. While these assumptions are strong and the proof is primarily intended as intuition rather than a formal guarantee for real LLM systems, it provides a conceptual justification for aggregating information across diverse prompts.
+
+In practice, the framework approximates the latent distribution through weighted aggregation of final agent answers. Agents that frequently revise their answers during interaction receive lower weights, based on the assumption that answer instability reflects lower reliability. The resulting weighted answer frequencies define an empirical probability distribution over candidate answers. Uncertainty is then computed from this distribution, effectively measuring residual disagreement among agents after interaction. High disagreement corresponds to high uncertainty, while strong consensus indicates confidence. An abstention policy is subsequently applied, allowing the model to decline answering when estimated uncertainty exceeds a predefined threshold.
+
+Experimental results demonstrate that the proposed method improves uncertainty calibration and hallucination detection relative to several existing black-box uncertainty estimation approaches. The largest gains are observed on factual knowledge benchmarks involving less common entities and more challenging retrieval scenarios, supporting the hypothesis that prompt-dependent retrieval errors are a significant source of uncertainty. Additional ablation studies suggest that both query diversity and multi-agent interaction contribute to performance improvements, indicating that the framework benefits from more than simple prompt ensembling alone.
+
+Overall, this work reframes black-box uncertainty estimation as a knowledge retrieval problem rather than solely a sampling problem. By modeling different prompt formulations as noisy probes of a latent knowledge state and employing interaction among multiple agents to mitigate retrieval biases, the framework provides a novel perspective on uncertainty estimation in LLMs. Although the theoretical analysis relies on idealized assumptions and the practical implementation ultimately reduces to a debate-and-aggregation procedure, the empirical results suggest that leveraging prompt diversity and agent interaction can offer a more informative estimate of model uncertainty than traditional self-consistency methods.
+
+
+
+\subsection{Complementing Self-Consistency with Cross-Model Disagreement for Uncertainty Quantification}
+
+Recent work on uncertainty quantification in large language models (LLMs) has increasingly moved beyond token-level confidence measures toward response-level uncertainty estimation. A dominant line of research estimates predictive uncertainty through \emph{self-consistency}, where multiple responses are sampled from the same model and uncertainty is inferred from their agreement or semantic diversity. Methods such as Semantic Entropy and response similarity–based uncertainty interpret disagreement among repeated generations as evidence of uncertainty, capturing the stochastic variability of the model conditioned on a fixed prompt. These approaches are generally framed as estimating \emph{aleatoric uncertainty}, representing uncertainty arising from the response distribution of a single parameterized model.
+
+One representative formulation measures uncertainty using pairwise semantic similarity between independently sampled outputs. Given a prompt and model, uncertainty is defined as the expected semantic dissimilarity among generated responses. Under this view, highly consistent generations indicate low uncertainty, while semantically diverse outputs suggest ambiguity or instability in the prediction process. Such approaches have demonstrated strong empirical performance and often outperform probability-based confidence metrics because they operate directly in semantic output space rather than relying on token probabilities. However, these methods implicitly assume that repeated sampling from a single model sufficiently characterizes predictive uncertainty.
+
+More recent work argues that self-consistency alone cannot capture uncertainty introduced by model misspecification. Even when a model generates internally consistent outputs, it may systematically deviate from the true response distribution. To address this limitation, cross-model uncertainty estimation introduces \emph{epistemic uncertainty} through disagreement across independently trained models. Instead of relying solely on repeated sampling from one model, these approaches compare responses generated by a reference model with responses sampled from an auxiliary ensemble of models.
+
+A similarity-based formulation of epistemic uncertainty treats uncertainty as the discrepancy between two quantities: the self-similarity of responses generated by the reference model and the cross-model similarity between the reference model and a surrogate distribution of alternative models. High epistemic uncertainty arises when the reference model remains internally consistent yet disagrees semantically with other plausible models. This construction resembles classical deep ensemble decomposition, where predictive uncertainty is separated into within-model variability (aleatoric) and between-model variability (epistemic), but extends the framework into semantic response space rather than predictive variance.
+
+Empirically, the proposed framework evaluates uncertainty using an ensemble of instruction-tuned 7--9B parameter LLMs from multiple model families, including Gemma, Granite, Llama, Mistral, and Qwen. Aleatoric uncertainty is estimated through repeated sampling from a single reference model, while total uncertainty incorporates cross-model similarity computed using responses from auxiliary models under matched sampling budgets. Evaluation spans diverse long-form generation tasks including question answering, mathematical reasoning, translation, summarization, and factuality assessment. Performance is assessed using AUROC for correctness discrimination and risk--coverage analysis for selective prediction. Experimental results show that incorporating cross-model disagreement consistently improves uncertainty estimation over self-consistency alone, particularly in scenarios where models produce confidently incorrect outputs. Improvements are most pronounced on tasks exhibiting high redundancy across correct responses and moderate inter-model disagreement, supporting the claim that epistemic uncertainty provides complementary information beyond intra-model response variability.
+
+Overall, this line of work suggests that uncertainty estimation in LLMs benefits from combining self-consistency with cross-model disagreement. By jointly modeling intra-model semantic variability and inter-model divergence, total predictive uncertainty provides a more reliable indicator of response correctness and selective abstention than self-consistency-based approaches alone.
+
