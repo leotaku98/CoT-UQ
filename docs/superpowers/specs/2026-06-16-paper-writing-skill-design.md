@@ -16,7 +16,7 @@ for CoT-based LLMs. Output is raw LaTeX (no journal template) ready to paste int
 ## Trigger
 
 - Command: `/paper`
-- Scope: **global** — available in all projects, not tied to CoT-UQ
+- Scope: **project-local** — lives in `.claude/skills/paper.md` inside CoT-UQ
 
 ---
 
@@ -48,12 +48,13 @@ If any path is missing, report what was not found and continue with what is avai
 ## Capabilities
 
 ### 1. Draft section
-Write raw LaTeX for any paper section on request:
-- Introduction
-- Related Work
-- Method
-- Experiments
-- Conclusion / Abstract
+Write raw LaTeX for any paper section on request, in this order:
+1. Abstract
+2. Introduction
+3. Preliminary
+4. Methodology
+5. Related Works
+6. Experiment
 
 Uses loaded literature and results as grounding. Never fabricates numbers.
 
