@@ -13,6 +13,8 @@ You are helping write a research paper on **black-box uncertainty quantification
 
 Run all reads in parallel:
 
+**Our method:** Read `./papers/our_method.tex` first — this is the core idea and method description.
+
 **Literature:** Read every `.tex` file under `./papers/literature_reviews/`. If a file is long, read the first 100 lines first; read the rest on demand.
 
 **Citations:** Read `./papers/references.bib`.

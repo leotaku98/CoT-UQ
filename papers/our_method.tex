@@ -1,0 +1,118 @@
+% Core idea and method description for the CoT-UQ BD paper.
+% This file is read by the /paper skill as grounding for the Methodology section.
+
+\section*{Core Idea (Internal Notes)}
+
+\subsection*{Motivation}
+
+Existing black-box uncertainty quantification (UQ) for LLMs measures confidence by
+checking whether \emph{final answers} agree across multiple sampled responses.
+This ignores the intermediate reasoning structure that Chain-of-Thought (CoT) models
+explicitly produce. Two chains that reach the \emph{same final answer} via
+\emph{different reasoning paths} represent genuine epistemic uncertainty that
+answer-level methods discard entirely. Our methods exploit this signal.
+
+\subsection*{Mathematical Foundation: Band Depth}
+
+Band depth is a functional data analysis concept that ranks a set of curves from most
+central (highest depth) to most outlying (lowest depth). The curve with the highest
+band depth is the functional median. We extend this concept from ordered curves to
+discrete reasoning paths on a graph: a CoT chain has high band depth if it lies
+``inside'' the convex hull formed by other chains.
+
+\subsection*{Method 1: pBD --- Path Band Depth}
+
+Each CoT chain is treated as an \emph{ordered sequence of steps}. Chains of
+different lengths are aligned via Dynamic Time Warping (DTW). The centrality of
+chain $p_i$ is measured by the mean cosine similarity between each of its
+step embeddings and the ensemble centroid at the corresponding aligned position
+across all other chains:
+\[
+s_i = \frac{1}{n_i} \sum_{k=1}^{n_i}
+\cos\!\left(e^{p_i}(k),\; \frac{1}{M-1}\sum_{r \neq i}
+\overline{e^{p_r}(\sigma_r(k))}\right)
+\]
+where $\sigma_r$ is the DTW alignment from chain $p_i$ to reference chain $p_r$.
+Confidence = $\bar{s}$ (mean depth over all $M$ chains).
+
+\textbf{Limitation:} Order-sensitive --- chains $A \to B \to C \to D$ and
+$A \to C \to B \to D$ are treated as different even if they express the same
+reasoning. Also requires DTW alignment, which is $O(n^2)$ per pair.
+
+\subsection*{Graph Construction (shared by vBD and gBD)}
+
+From the $M$ sampled CoT chains, embed every reasoning step using a sentence
+encoder. Build a reasoning graph $G = (V, E)$ as follows:
+\begin{itemize}
+  \item Steps whose cosine similarity exceeds a high threshold $\theta_c$ are merged
+        into the same node (semantic clustering).
+  \item Consecutive steps within the same chain are connected by a directed edge.
+  \item Steps from different chains whose cosine similarity exceeds a lower threshold
+        $\theta_e$ are connected by an undirected edge.
+\end{itemize}
+The result is a reasoning graph over the full ensemble where nodes represent
+semantic clusters of reasoning states and edges represent either sequential
+or semantic proximity relationships.
+
+\subsection*{Method 2: vBD --- Vertex Band Depth}
+
+Band depth is computed at the \emph{vertex} level on the reasoning graph.
+For vertex $v$, the vertex band depth is the probability that $v$ lies inside
+the geodesic convex hull of two randomly sampled vertices:
+\[
+v\text{BD}(v) = \mathbb{E}_{\mathcal{V}_2}\bigl[\chi(v \in H[\mathcal{V}_2])\bigr]
+\]
+The depth of chain $P_i$ is the mean vertex depth over all nodes it visits:
+\[
+c\text{BD}(P_i) = \frac{1}{|P_i|} \sum_{v \in P_i} v\text{BD}(v)
+\]
+\textbf{Advantage:} Order-invariant (only the \emph{set} of visited nodes
+matters, not their sequence).
+\textbf{Limitation:} Coarse --- treats each vertex independently and loses
+path-level structural information.
+
+\subsection*{Method 3: gBD --- Graph Band Depth (best)}
+
+Band depth is restored to the \emph{path} level, but the reference distribution
+is \textbf{random walks on the reasoning graph} rather than the $M$ sampled chains.
+For each real CoT chain $P_i$, we generate $T$ pairs of random walks
+$(P_a^{(t)}, P_b^{(t)})$ on $G$ and measure the fraction of $P_i$'s vertices
+that fall inside their geodesic convex hull (soft containment):
+\[
+\text{gBD}(P_i) = \frac{1}{T} \sum_{t=1}^{T}
+\frac{|\{v \in P_i : v \in \text{hull}(P_a^{(t)}, P_b^{(t)})\}|}{|P_i|}
+\]
+Final confidence score:
+\[
+\text{conf} = \alpha \cdot \overline{\text{gBD}} + (1-\alpha) \cdot \text{majority\_frac},
+\quad \alpha = 0.10
+\]
+
+\textbf{gBD\_v1} (anchored): random walks are constrained to start at the
+input node and end at the output node of the CoT graph.
+
+\textbf{gBD\_v2} (free, best): random walks may start and end anywhere in $G$,
+freely exploring the full topology of the reasoning graph.
+
+\textbf{Key advantage:} By sampling reference paths not present in the ensemble,
+gBD characterises the \emph{full reasoning space} defined by the graph topology,
+not just the $N$ specific chains the model happened to generate. This makes it
+robust to small ensembles and gives a richer band depth estimate. It is also
+order-invariant.
+
+\subsection*{Comparison Summary}
+
+\begin{tabular}{lccc}
+\hline
+& \textbf{pBD} & \textbf{vBD} & \textbf{gBD} \\
+\hline
+Order-sensitive & Yes & No & No \\
+Graph required  & No  & Yes & Yes \\
+Reference distribution & Ensemble chains & Ensemble vertices & Random walks on graph \\
+Depth level     & Path (step-wise) & Vertex, avg over chain & Path (soft hull) \\
+Extra LLM calls & No  & No  & No \\
+\hline
+\end{tabular}
+
+All three methods are \textbf{model-free}: they require only a small sentence encoder
+(all-MiniLM-L6-v2) and no additional LLM inference calls beyond the initial ensemble.
