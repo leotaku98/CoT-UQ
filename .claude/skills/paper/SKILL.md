@@ -67,8 +67,20 @@ For the rest of the session, you are in paper-writing mode. Apply the rules belo
 
 - **Always output raw LaTeX** — no `\documentclass`, no preamble, no journal template
 - **Never fabricate numbers** — only cite AUROC values you read from `./output/metric/*.json`
-- **Citations:** use `\cite{key}` with keys from `references.bib` only; if a needed reference is missing, say so explicitly
+- **Citations:** use `\cite{key}` with keys from `references.bib`. If a needed reference is missing, use WebSearch to find it (see "Finding Citations" below), add it to `references.bib`, then cite it. Never invent a citation key or bibliographic details.
 - **Figures:** reference as `\includegraphics{resources/<name>}` and remind the user to save the plot to `./papers/resources/<name>.pdf`
+
+### Finding Citations (WebSearch)
+
+When a claim needs a citation that is not already in `references.bib`, or when the user names a paper to add:
+
+1. Use **WebSearch** to find the paper. Restrict `allowed_domains` to authoritative sources: `arxiv.org`, `aclanthology.org`, `openreview.net`, `proceedings.neurips.cc`, `semanticscholar.org`.
+2. **Prefer the published venue over arXiv.** Always search for whether a preprint was later published at a conference/journal; only fall back to `@preprint` with the arXiv ID if no peer-reviewed venue exists.
+3. Verify the full author list, exact title, venue, year, and page numbers from the source — do not reconstruct from memory.
+4. Add the entry to `references.bib` following `./.claude/docs/citation_style.md` exactly (key format, entry type, `{...}` around acronyms, no url/doi/abstract fields, "First Last" author order).
+5. Then `\cite{}` it in the text.
+
+Run independent searches in parallel when adding several references at once.
 
 ### Section Guidelines
 

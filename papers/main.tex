@@ -1,0 +1,156 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath, amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{natbib}
+
+\title{Band Depth Uncertainty Quantification for Chain-of-Thought Reasoning in Large Language Models}
+\author{}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+% -----------------------------------------------------------------------
+\begin{abstract}
+Chain-of-Thought (CoT) prompting has become the dominant paradigm for eliciting
+reasoning from large language models (LLMs), yet it has created a widening gap
+in uncertainty quantification (UQ). When a model generates a step-by-step
+reasoning chain, it exposes far richer information than just a final answer---
+but existing black-box UQ methods discard this structure entirely, reducing
+reliability estimation to counting how often sampled final answers agree.
+This is insufficient: two chains that reach the same answer via structurally
+divergent reasoning paths are not equally trustworthy, yet answer-level
+consistency treats them identically. Approaches that ask the model to verbalize
+its own confidence fare no better, yielding scores barely above chance
+(AUROC\,$\approx$\,0.50--0.55 in our experiments). The core problem is that
+meaningful uncertainty signals are latent in the \emph{geometry} of the
+reasoning process---in where chains converge, where they diverge, and how
+central each chain is relative to the ensemble---and neither answer-level
+counting nor verbal introspection can access that geometry.
+
+We propose \textbf{BD-UQ}, a family of truly black-box UQ methods that operate
+directly on the structure of CoT reasoning ensembles using \emph{Band Depth}
+(BD), a classical concept from functional data analysis that measures how
+centrally a curve lies within a distribution of curves. We lift band depth from
+ordered curves to discrete reasoning paths by building a \emph{reasoning graph}
+over an ensemble of sampled CoT chains: nodes are semantic clusters of reasoning
+steps and edges capture sequential or cross-chain semantic proximity. Three
+variants exploit this graph at increasing levels of sophistication---\textbf{pBD}
+operates on aligned paths, \textbf{vBD} on individual graph vertices, and
+\textbf{gBD} on random walks that explore the full topology of the reasoning
+space beyond the specific chains generated. All variants require only a small
+sentence encoder and zero additional LLM calls. Extensive experiments across
+mathematical reasoning and multi-hop question answering benchmarks show that
+gBD consistently and substantially outperforms sampling-based and verbalized
+baselines, demonstrating that the reasoning graph is a powerful and previously
+untapped source of uncertainty signal.
+\end{abstract}
+
+% -----------------------------------------------------------------------
+\section{Introduction}
+\label{sec:intro}
+
+Large language models (LLMs) have become capable general-purpose reasoners, in
+large part due to Chain-of-Thought (CoT) prompting~\citep{wei2022chain}, which
+elicits explicit step-by-step reasoning before a final answer and has driven
+strong gains on mathematical and multi-hop reasoning tasks~\citep{wang2023selfconsistency, yao2023tree}.
+As these models are deployed in increasingly consequential settings, however,
+their fluent but sometimes confidently wrong outputs make it essential to know
+\emph{when to trust} a given response. Uncertainty quantification (UQ) addresses
+this by attaching a confidence score to each generation, ideally one that ranks
+correct answers above incorrect ones. The most practically important regime is
+\emph{black-box} UQ, where only the generated text is available---no token
+logits, hidden states, or gradients---since this is the only access mode offered
+by the strongest proprietary models and the cheapest to deploy for open ones.
+
+Existing black-box UQ methods almost universally reduce a response to its
+\emph{final answer} and measure agreement across multiple sampled answers.
+Self-consistency counts how often the majority answer recurs~\citep{wang2023selfconsistency};
+semantic entropy clusters answers by meaning and measures the entropy of the
+cluster distribution~\citep{kuhn2023semantic, farquhar2024detecting};
+and related approaches compute pairwise answer similarity or
+non-contradiction~\citep{lin2023generating, manakul2023selfcheckgpt, chen2024quantifying}.
+A second line of work instead asks the model to \emph{verbalize} its own
+confidence, either directly or by self-probing in a fresh
+context~\citep{xiong2024llms, liu2024uait}. Both families have a common
+blind spot: they treat the reasoning chain---the very structure CoT was designed
+to produce---as a black box. Answer-level methods discard it entirely, and
+verbalized methods rely on the model's unreliable introspection over it.
+
+This blind spot matters because the reasoning chain carries information that the
+final answer cannot. Two responses may converge on the same answer through
+entirely different reasoning paths---one sound, one a lucky coincidence of
+errors---yet answer-level consistency assigns them identical confidence.
+Conversely, an ensemble whose chains disagree sharply at intermediate steps
+signals genuine model uncertainty even when the final answers happen to match.
+Recent work has begun to incorporate reasoning into UQ: CoT-UQ extracts
+keywords and importance scores from each step to reweight token
+probabilities~\citep{zhang2025cotuq}, and graph-based metrics summarize
+relationships among extracted claims~\citep{jiang2024graphuncertainty}. Yet
+CoT-UQ still requires token logits (and is therefore not fully black-box) and
+operates on a single response rather than an ensemble, while claim-graph methods
+target long-form factuality rather than the geometry of reasoning itself. The
+question of how to extract uncertainty from the \emph{structure} of an ensemble
+of reasoning chains, using text alone, remains open.
+
+We argue that the right signal lives in the \emph{geometry} of the reasoning
+ensemble: where chains converge, where they diverge, and how central each chain
+is relative to the others. To capture this, we turn to \emph{band depth}, a
+concept from functional data analysis that ranks a set of curves from most
+central (the functional median) to most outlying~\citep{lopezpintado2009banddepth},
+and which has been extended to ensembles of contours and of paths on a
+graph~\citep{santer2023contourbanddepth, raj2017pathboxplots}. Building on this
+lineage, we embed every reasoning step of every sampled chain with a sentence
+encoder~\citep{reimers2019sentencebert} and construct a \emph{reasoning graph}
+whose nodes are semantic clusters of steps and whose edges encode sequential and
+cross-chain proximity. On this graph we define a family of depth-based
+confidence scores---\textbf{pBD}, \textbf{vBD}, and \textbf{gBD}---that measure
+how central each chain is within the ensemble. A chain that lies deep inside the
+ensemble's reasoning band is trustworthy; an outlying chain is not. Crucially,
+all variants are fully black-box and model-free: they require only the sampled
+text and a lightweight encoder, with no additional LLM calls.
+
+Our contributions are as follows:
+\begin{itemize}
+  \item \textbf{Conceptually}, we identify the structure of CoT reasoning
+        ensembles as an untapped source of black-box uncertainty, and show that
+        the geometric notion of band depth provides a principled way to exploit
+        it---going beyond both answer-level consistency and verbalized
+        self-probing.
+  \item \textbf{Technically}, we introduce a reasoning-graph construction over
+        sampled CoT chains and three band-depth confidence estimators on it:
+        \textbf{pBD} (path-level, order-sensitive), \textbf{vBD} (vertex-level,
+        order-invariant), and \textbf{gBD} (path-level via random walks,
+        order-invariant), each requiring no token logits and no extra LLM
+        inference.
+  \item \textbf{Empirically}, we evaluate on five benchmarks across mathematical
+        reasoning~\citep{cobbe2021gsm8k, patel2021svamp, miao2020asdiv} and
+        multi-hop question answering~\citep{yang2018hotpotqa, ho2020wikimultihop}
+        with two Llama models~\citep{touvron2023llama2, grattafiori2024llama3},
+        showing that gBD consistently and substantially outperforms
+        sampling-based and verbalized baselines.
+\end{itemize}
+
+The remainder of this paper is organized as follows. Section~\ref{sec:prelim}
+formalizes the black-box UQ problem and the CoT generation format.
+Section~\ref{sec:method} constructs the reasoning graph and defines the pBD,
+vBD, and gBD estimators. Section~\ref{sec:related} situates our work within the
+UQ and CoT literature. Section~\ref{sec:exp} reports experimental setup,
+results, and ablations, and we conclude thereafter.
+
+% -----------------------------------------------------------------------
+% \input{sections/preliminary}
+% \input{sections/methodology}
+% \input{sections/related_works}
+% \input{sections/experiment}
+
+% -----------------------------------------------------------------------
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\end{document}
