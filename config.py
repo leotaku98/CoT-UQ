@@ -42,6 +42,18 @@ def parse_arguments():
         help="minimum contribution score fraction (0-1) to include a keyword in self-probing-keyword"
     )
     parser.add_argument(
+        "--subset_size", type=int, default=0,
+        help="ablation: band subset size J (vertices for vBD, walks for gBD); 0 = method default"
+    )
+    parser.add_argument(
+        "--walk_length", type=str, default="adaptive",
+        help="ablation: gBD random-walk length; an integer, or 'adaptive' (default, scales to graph)"
+    )
+    parser.add_argument(
+        "--ablation", type=str, default="", choices=["", "subset_size", "walk_length"],
+        help="ablation mode; routes AUROC to output/ablation/<ablation>.json instead of output/metric"
+    )
+    parser.add_argument(
         "--test_start", default='0', help='string, number'
     )
     parser.add_argument(

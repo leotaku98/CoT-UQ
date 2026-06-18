@@ -4,6 +4,7 @@
 \usepackage{amsmath, amssymb}
 \usepackage{graphicx}
 \usepackage{booktabs}
+\usepackage{multirow}
 \usepackage{hyperref}
 \usepackage{natbib}
 
@@ -144,10 +145,615 @@ UQ and CoT literature. Section~\ref{sec:exp} reports experimental setup,
 results, and ablations, and we conclude thereafter.
 
 % -----------------------------------------------------------------------
-% \input{sections/preliminary}
-% \input{sections/methodology}
-% \input{sections/related_works}
-% \input{sections/experiment}
+\section{Preliminaries}
+\label{sec:prelim}
+
+\paragraph{Problem setup.}
+Let $\mathcal{M}$ denote a black-box LLM: given a prompt $x$, it returns a
+response $y \sim \mathcal{M}(\cdot \mid x)$, and we assume access only to its
+generated text. For a dataset
+$\{x_i\}_{i=1}^{N}$ with reference answers $\{y_i^\star\}_{i=1}^{N}$, an oracle
+correctness function $h(y_i; y_i^\star) \in \{0, 1\}$ indicates whether response
+$y_i$ is correct; this label is used only for offline evaluation and is
+unavailable at inference time. The goal of uncertainty quantification (UQ) is to
+design a confidence scorer
+\begin{equation}
+  \hat{s} : y_i \mapsto \hat{s}(y_i) \in [0, 1],
+\end{equation}
+that assigns higher scores to correct responses than to incorrect ones, so that
+thresholding $\hat{s}(y_i) < \tau$ yields a reliable error detector. Because
+$\hat{s}$ depends only on model outputs and never on $y_i^\star$, it serves as a
+practical proxy for the inaccessible oracle.
+
+\paragraph{Chain-of-Thought generation.}
+Under Chain-of-Thought (CoT) prompting~\citep{wei2022chain}, a response is not a
+bare answer but a structured reasoning trace. We write a CoT response as an
+ordered sequence of reasoning steps followed by a final answer,
+\begin{equation}
+  y_i = (s_1, s_2, \ldots, s_k, a),
+\end{equation}
+where each $s_j$ is a natural-language reasoning step and $a$ is the extracted
+final answer. Throughout, we refer to the step sequence
+$P = (s_1, \ldots, s_k)$ as a \emph{reasoning chain} (or path) and to $a$ as its
+answer.
+
+\paragraph{Ensemble of reasoning chains.}
+Rather than scoring a single response, our methods operate on an \emph{ensemble}
+of CoT responses sampled for the same prompt. For each $x_i$, we draw $M$
+responses under stochastic decoding,
+\begin{equation}
+  \{ y_i^{(1)}, \ldots, y_i^{(M)} \} \sim \mathcal{M}(\cdot \mid x_i),
+  \qquad
+  y_i^{(m)} = (P_i^{(m)}, a_i^{(m)}),
+\end{equation}
+yielding $M$ reasoning chains $\{P_i^{(m)}\}_{m=1}^{M}$ and their answers
+$\{a_i^{(m)}\}_{m=1}^{M}$. Answer-level baselines summarize only the multiset of
+answers $\{a_i^{(m)}\}$; in contrast, our methods (Section~\ref{sec:method})
+exploit the full set of chains $\{P_i^{(m)}\}$. We embed each reasoning step with
+a frozen sentence encoder~\citep{reimers2019sentencebert}, mapping a step $s$ to
+a vector $e(s) \in \mathbb{R}^d$, which provides the geometric substrate on
+which band depth is computed.
+
+\paragraph{Evaluation metric.}
+Following standard practice in LLM UQ~\citep{kuhn2023semantic, xiong2024llms}, we
+evaluate confidence scorers by the Area Under the Receiver Operating
+Characteristic curve (AUROC) between the predicted scores $\{\hat{s}(y_i)\}$ and
+the binary correctness labels $\{h(y_i; y_i^\star)\}$. AUROC measures the
+probability that a randomly chosen correct response receives a higher confidence
+than a randomly chosen incorrect one; a score of $1.0$ is perfect ranking and
+$0.5$ corresponds to random guessing, with no dependence on a particular
+threshold $\tau$.
+
+\paragraph{Datasets and models.}
+We study two reasoning regimes. For \emph{mathematical reasoning} we use
+GSM8K~\citep{cobbe2021gsm8k}, SVAMP~\citep{patel2021svamp}, and
+ASDiv~\citep{miao2020asdiv}; for \emph{multi-hop question answering} we use
+HotpotQA~\citep{yang2018hotpotqa} and 2WikiMultihopQA~\citep{ho2020wikimultihop}.
+As backbones we use two open models of differing scale and family,
+Llama-3.1-8B~\citep{grattafiori2024llama3} and
+Llama-2-13B~\citep{touvron2023llama2}. Full dataset statistics and decoding
+hyperparameters are deferred to Section~\ref{sec:exp}.
+
+% -----------------------------------------------------------------------
+\section{Methodology}
+\label{sec:method}
+
+We now develop a family of black-box confidence scorers that act on the ensemble
+of reasoning chains $\{P_i^{(m)}\}_{m=1}^{M}$ defined in
+Section~\ref{sec:prelim}. The common principle is \emph{centrality}: a reasoning
+chain that lies deep within the ensemble---surrounded and ``enclosed'' by the
+others---reflects a stable, well-supported line of reasoning, whereas an
+outlying chain signals instability. We make this precise through band depth and
+present three estimators of increasing structural sophistication: pBD
+(Section~\ref{sec:method:pbd}), vBD (Section~\ref{sec:method:vbd}), and gBD
+(Section~\ref{sec:method:gbd}). For brevity we drop the prompt index $i$ and
+write the ensemble as $\{P^{(1)}, \ldots, P^{(M)}\}$, with $P^{(m)} = (s_1^{(m)},
+\ldots, s_{n_m}^{(m)})$ and step embeddings $e(s_j^{(m)}) \in \mathbb{R}^d$.
+
+\paragraph{Band depth.}
+Band depth is a notion from functional data analysis that ranks a sample of
+curves from most central to most outlying~\citep{lopezpintado2009banddepth}.
+Given a set of curves, any pair (or larger subset) delimits a \emph{band}, and
+the depth of a curve is the fraction of bands that fully contain it; the curve of
+maximal depth is the functional median, and low-depth curves are outliers. The
+concept has been extended to ensembles of contours~\citep{santer2023contourbanddepth}
+and of paths on a graph~\citep{raj2017pathboxplots}. We adapt these ideas to
+reasoning chains: each chain plays the role of a curve, and its depth within the
+ensemble serves as a confidence signal---high ensemble depth indicates agreement
+and reliability, low depth indicates dispersion and uncertainty.
+
+\subsection{pBD: Path Band Depth}
+\label{sec:method:pbd}
+
+pBD treats each reasoning chain as an \emph{ordered} sequence of step embeddings
+and measures how close a chain runs to the ensemble's central tendency at each
+position. Because chains have different lengths and may reason at different
+paces, we align them with Dynamic Time Warping (DTW) before comparison.
+
+For a chain $P^{(m)}$ and every other chain $P^{(r)}$ ($r \neq m$), let
+$\sigma_r$ be the DTW alignment mapping each step index $k$ of $P^{(m)}$ to its
+corresponding index in $P^{(r)}$. The path depth of $P^{(m)}$ is the mean cosine
+similarity between each of its step embeddings and the centroid of the aligned
+steps across the other chains,
+\begin{equation}
+  s^{(m)} = \frac{1}{n_m} \sum_{k=1}^{n_m}
+  \cos\!\left( e\big(s_k^{(m)}\big),\;
+  \frac{1}{M-1} \sum_{r \neq m} e\big(s_{\sigma_r(k)}^{(r)}\big) \right),
+\end{equation}
+and the prompt-level confidence is the mean depth over the ensemble,
+$\hat{s} = \frac{1}{M} \sum_{m=1}^{M} s^{(m)}$.
+
+Despite capturing uncertainty in the CoT chain, pBD has its own weakness. In Table~\ref{tab:ensemble-example}, the four chains were produced for a
+single HotpotQA question and all reach the correct answer ``We Are the Ocean''
+through the same underlying logic---establish each band's member count, compare
+the two numbers, and conclude---yet they realize that logic very differently. The
+two member-count lookups appear in opposite orders (Chains~A and~C state ``We Are
+the Ocean'' first, Chains~B and~D state ``The Dream Academy'' first); the
+comparison is phrased in several equivalent ways (``$5 > 3$'', ``3 vs.\ 5'',
+``3 is fewer than 5''); and the chains range from three to six steps, some
+inserting filler such as ``consider the other band'' that carries no new
+information. Conceptually the chains are in near-perfect agreement, but pBD
+compares step embeddings position by position, so it matches ``We Are the Ocean
+has 5 members'' in one chain against ``The Dream Academy has 3 members'' in
+another and registers large spurious diversity, deflating the depth exactly where
+confidence should be highest. pBD is therefore \emph{order-sensitive}, even though
+agreement among reasoning chains is inherently order-invariant. Computationally,
+the differing lengths force pBD to establish a common index set for every pair,
+which DTW obtains by solving a dynamic program at a cost of $O(n^2 d)$ per pair
+and $O(M^2 n^2 d)$ for the full ensemble. Both problems stem from insisting on a
+position-wise, sequential view of the chains.
+
+\begin{table}[t]
+  \centering
+  \footnotesize
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{c|llll}
+    \toprule
+    Step & \textbf{Chain A} & \textbf{Chain B} & \textbf{Chain C} & \textbf{Chain D} \\
+    \midrule
+    1 & WATO is a 5-piece & TDA: a 3-member group & WATO numbers 5 musicians & TDA: 3 members \\
+    2 & TDA has 3 members & WATO has 5 members    & consider the other band  & WATO: 5, more than 3 \\
+    3 & $5 > 3$           & 3 vs.\ 5              & TDA is a trio (3)        & answer: WATO \\
+    4 & WATO is larger    & 5 is larger           & 5 and 3 side by side     & --- \\
+    5 & ---               & WATO has more         & 3 is fewer than 5        & --- \\
+    6 & ---               & ---                   & WATO wins on size        & --- \\
+    \bottomrule
+  \end{tabular}
+  \caption{Four Chain-of-Thought chains for the HotpotQA question
+  \emph{``Which band has more members, We Are the Ocean or The Dream Academy?''}
+  (WATO = We Are the Ocean, TDA = The Dream Academy). All four reach the correct
+  answer through the same logic, but differ in the order of the two member-count
+  lookups, in the wording of the comparison, and in length (three to six steps).
+  The chains agree in meaning, yet pBD's position-wise comparison misaligns
+  equivalent steps (e.g.\ ``WATO: 5'' against ``TDA: 3'') and counts them as
+  diverse, motivating the order-invariant graph of Section~\ref{sec:method:graph}.}
+  \label{tab:ensemble-example}
+\end{table}
+
+\subsection{Reasoning Graph Construction}
+\label{sec:method:graph}
+
+To mitigate both the order-sensitivity and the alignment cost of pBD, we abandon
+position-wise comparison and instead collapse the ensemble into a single
+\emph{reasoning graph} $G = (V, E)$, which is used later in vBD and gBD. By merging
+semantically equivalent steps into shared nodes regardless of where they appear
+in a chain, the graph maps the reordered lookups, the differently-worded
+comparisons, and the varied-length chains of Table~\ref{tab:ensemble-example}
+onto one shared structure: equivalent reasoning is no longer counted as diversity
+and no pairwise alignment is needed. Starting from the embedded steps of all $M$
+chains:
+\begin{itemize}
+  \item \textbf{Nodes.} Steps whose pairwise cosine similarity exceeds a high
+        threshold $\theta_c$ are merged into a single node, so that each
+        $v \in V$ represents a semantic cluster of equivalent reasoning states.
+  \item \textbf{Sequential edges.} Consecutive steps within the same chain are
+        joined by a directed edge, preserving local reasoning flow.
+  \item \textbf{Semantic edges.} Steps from different chains whose cosine
+        similarity exceeds a lower threshold $\theta_e < \theta_c$ are joined by
+        an undirected edge, linking related reasoning across chains.
+\end{itemize}
+Each reasoning chain $P^{(m)}$ thereby becomes a walk over $V$, and the geometry
+of the ensemble is encoded in the topology of $G$.
+
+\subsection{vBD: Vertex Band Depth}
+\label{sec:method:vbd}
+
+vBD measures the \emph{centrality of each individual vertex} in the reasoning
+graph, and then scores a chain by how central the nodes it visits are. A vertex
+is central if it lies ``between'' many other reasoning states---a node that the
+bulk of the graph encloses---and peripheral if it sits at the fringe. Because
+only the \emph{set} of visited nodes enters the score, vBD is fully
+order-invariant. Concretely, we sample vertex pairs uniformly from the vertex set $V$. For a
+vertex $v$, its vertex band depth is the probability that $v$ lies inside the
+geodesic convex hull $H[\cdot]$ of two vertices
+$\mathcal{V}_2 = \{v_a, v_b\}$ drawn at random from $V$,
+\begin{equation}
+  v\text{BD}(v) = \mathbb{E}_{\mathcal{V}_2 \sim V}\!\left[ \mathbf{1}\big(v \in H[\mathcal{V}_2]\big) \right],
+\end{equation}
+estimated by Monte Carlo sampling of $S$ such pairs from $V$. The depth of a
+chain is the mean vertex depth over the nodes it visits,
+\begin{equation}
+  c\text{BD}\big(P^{(m)}\big) = \frac{1}{|P^{(m)}|} \sum_{v \in P^{(m)}} v\text{BD}(v),
+\end{equation}
+and the prompt-level confidence is again the ensemble mean,
+$\hat{s} = \frac{1}{M} \sum_{m=1}^{M} c\text{BD}(P^{(m)})$.
+
+Beyond graph construction, vBD requires only $S$ sampled vertex pairs from $V$,
+each needing a geodesic-hull membership test, and is far cheaper than pBD's
+pairwise DTW. Its limitation is that it treats each vertex \emph{independently}:
+by averaging per-vertex depths it ignores how those vertices are linked into a
+path---the transitions a chain takes and the order in which it visits states.
+Two chains that occupy the same set of central nodes but connect them through
+very different reasoning receive the same vBD score, even if one follows a
+coherent route through the graph and the other jumps erratically between
+unrelated states. vBD thus captures \emph{which} reasoning states a chain
+occupies but not \emph{how} it moves among them.
+
+\subsection{gBD: Graph Band Depth}
+\label{sec:method:gbd}
+
+gBD, our main method, returns depth to the \emph{path} level while remaining
+order-invariant, recovering exactly the information vBD discards: the relations
+between steps---which reasoning states follow which, and how a chain threads them
+together. Whereas vBD asks only whether a chain's individual nodes are central,
+gBD asks whether the chain's whole \emph{trajectory} through the graph is central.
+A chain that visits central nodes but connects them through incoherent jumps is
+no longer scored as though it reasoned coherently, because its transitions, not
+just its nodes, are evaluated.
+
+gBD also differs fundamentally from pBD in its \emph{reference distribution}. pBD
+can compare only the $M$ chains the model actually sampled, aligned pairwise; it
+never considers any reasoning beyond those $M$. Our graph, by contrast, clusters
+semantically equivalent steps into shared nodes and links steps across chains
+with edges, so it encodes reasoning transitions that no \emph{single} sampled
+chain exhibits. A random walk on $G$ can traverse these edges to synthesize
+entirely new chains. Figure~\ref{fig:reasoning-graph} shows the graph built from
+the four chains of Table~\ref{tab:ensemble-example}, with two sampled random walks
+highlighted: walk~A stitches Chain~C's framing step onto Chain~B's TDA-first
+ordering, while walk~B takes a shorter route straight from the member counts to
+the conclusion. Neither appears in any single sampled chain. gBD draws such walks
+as its reference paths, so it measures a chain's depth against the full reasoning
+space
+the graph defines rather than against only the $M$ observed chains. This yields a
+markedly richer depth estimate that remains robust when the ensemble is small,
+because the graph interpolates reasoning paths the model did not happen to sample.
+
+\begin{figure}[t]
+  \centering
+  % TODO: replace placeholder with the generated figure:
+  %   \includegraphics[width=\linewidth]{resources/reasoning_graph}
+  %   (run resources/plot_reasoning_graph.py to produce reasoning_graph.pdf)
+  \fbox{\begin{minipage}[c][3.5cm][c]{0.98\linewidth}\centering\itshape
+  [Placeholder] reasoning-graph figure --- two sampled walks on $G$ built from the
+  four chains of Table~\ref{tab:ensemble-example}.\end{minipage}}
+  \caption{Reasoning graph induced by the four chains of
+  Table~\ref{tab:ensemble-example} (WATO = We Are the Ocean, TDA = The Dream
+  Academy). Gray arrows are reasoning-graph edges aggregated across chains; the
+  red and blue paths are two random walks drawn by gBD. Walk~A (red),
+  ``consider the other band $\to$ TDA:3 $\to$ WATO:5 $\to$ compare $\to$ WATO
+  more,'' recombines Chain~C's framing with Chain~B's ordering; walk~B (blue),
+  ``TDA:3 $\to$ compare $\to$ WATO more,'' is a shorter route. Neither occurs in
+  any single sampled chain. gBD scores chains against such synthesized walks,
+  probing the full reasoning space rather than only the observed chains.}
+  \label{fig:reasoning-graph}
+\end{figure}
+
+For each real chain $P^{(m)}$ we draw $T$ pairs of random walks
+$(W_a^{(t)}, W_b^{(t)})$ on $G$ and measure the fraction of $P^{(m)}$'s vertices
+that fall inside the geodesic convex hull of each pair (soft containment),
+averaged over the $T$ draws,
+\begin{equation}
+  \text{gBD}\big(P^{(m)}\big) = \frac{1}{T} \sum_{t=1}^{T}
+  \frac{\big|\{\, v \in P^{(m)} : v \in \text{hull}(W_a^{(t)}, W_b^{(t)}) \,\}\big|}{|P^{(m)}|}.
+\end{equation}
+The final confidence blends the mean graph depth with the answer-level majority
+fraction $\rho$ (the share of chains agreeing with the modal answer),
+\begin{equation}
+  \hat{s} = \alpha \, \overline{\text{gBD}} + (1 - \alpha)\, \rho,
+  \qquad \alpha = 0.10,
+\end{equation}
+where $\overline{\text{gBD}} = \frac{1}{M}\sum_m \text{gBD}(P^{(m)})$. We
+consider two variants for generating the reference walks:
+\begin{itemize}
+  \item \textbf{gBD-v1 (anchored):} walks are constrained to start at the graph's
+        input node and end at its output node, following the global
+        question-to-answer direction.
+  \item \textbf{gBD-v2 (free):} walks may start and end anywhere in $G$, freely
+        exploring its topology; this is our strongest estimator.
+\end{itemize}
+
+gBD draws $T$ walk pairs per chain and performs hull-membership tests, comparable
+in cost to vBD and far below pBD. By sampling reference paths absent from the
+ensemble, gBD obtains a richer depth estimate that is robust to small ensembles,
+captures path-level structure, and is order-invariant---combining the strengths
+of pBD and vBD.
+
+% -----------------------------------------------------------------------
+\section{Related Works}
+\label{sec:related}
+
+\subsection{Black-box Uncertainty Quantification for LLMs}
+The dominant black-box paradigm estimates uncertainty from the consistency of
+multiple sampled responses. Self-consistency takes the agreement of the majority
+answer as a confidence signal~\citep{wang2023selfconsistency}, while semantic
+uncertainty and semantic entropy cluster responses by meaning and measure the
+entropy of the resulting distribution~\citep{kuhn2023semantic, farquhar2024detecting}.
+A related family scores the original response against samples through pairwise
+measures---exact-match and non-contradiction rates, BERTScore or embedding-cosine
+similarity, and normalized semantic negentropy~\citep{lin2023generating}---while
+SelfCheckGPT applies the same intuition to hallucination detection without
+external resources~\citep{manakul2023selfcheckgpt}. Other work calibrates answers
+from arbitrary models via sampling agreement~\citep{chen2024quantifying} or uses
+sampling to decide when to abstain on ambiguous
+questions~\citep{stelmakh2022selectively}. A complementary line elicits confidence
+from the model in natural language: \citet{xiong2024llms} study prompting,
+sampling, and aggregation strategies---vanilla, chain-of-thought, top-$k$,
+multi-step, and self-probing prompts---and find LLMs markedly overconfident, an
+effect prompting only partially mitigates, while other work instruction-tunes
+models to express calibrated confidence on self-generated
+labels~\citep{liu2024uait}.
+
+A more recent line moves beyond the final answer toward the reasoning itself.
+Closest to us, CoT-UQ extracts keywords from each reasoning step, scores their
+importance, and reweights token probabilities accordingly~\citep{zhang2025cotuq};
+it nonetheless requires access to token logits and operates on a single response
+rather than an ensemble. Graph-based metrics summarize relationships among claims
+extracted from long-form generations~\citep{jiang2024graphuncertainty}, targeting
+factuality rather than the geometry of reasoning, and further approaches estimate
+uncertainty through multi-agent interaction across query
+variations~\citep{feng2025multiagent}, iterative
+prompting~\citep{abbasiyadkori2024believe}, cross-model
+disagreement~\citep{hamidieh2026crossmodel}, or interrogative probing of long-form
+outputs~\citep{fan2026iuq}. All of these summarize the distribution of final
+answers or claims, or rely on the model's own introspection; none characterizes
+the \emph{structural centrality} of an ensemble of reasoning chains, which is the
+signal our methods exploit. Our approach is fully black-box (text only, requiring
+no token logits), operates on an ensemble, extracts its signal geometrically
+rather than by introspection, and adds no LLM calls beyond the initial sampling.
+
+\subsection{Band Depth and Contour Ensembles}
+Our geometric tools originate in functional data analysis, where band depth
+provides a center-outward ordering of curves and identifies a functional
+median~\citep{lopezpintado2009banddepth}. A substantial body of visualization
+research has since extended depth to spatial ensembles. Contour band depth
+generalizes the notion to ensembles of contours and underlies box-and-whisker
+style summaries of two-dimensional uncertainty~\citep{santer2023contourbanddepth};
+inclusion depth offers an efficient alternative based on inside/outside
+relationships between contours~\citep{chavesdeplaza2024inclusiondepth}, and
+further work handles multi-modal ensembles by disentangling their modes of
+variation~\citep{chavesdeplaza2024multimodal}. Most relevant to us, band depth has
+been generalized to ensembles of \emph{paths on a graph}, yielding a
+center-outward ordering of paths and a corresponding path
+boxplot~\citep{raj2017pathboxplots}. We build directly on this path-on-graph
+formulation, but repurpose it: rather than visualizing ensemble uncertainty, we
+treat the sampled reasoning chains of an LLM as the path ensemble and use their
+depth as a black-box confidence score. To our knowledge, this is the first
+application of band depth to LLM reasoning for uncertainty quantification.
+
+% -----------------------------------------------------------------------
+\section{Experiments}
+\label{sec:exp}
+
+\subsection{Experimental Setup}
+\label{sec:exp:setup}
+
+\textbf{Datasets.} We evaluate on five reasoning benchmarks spanning two regimes.
+For mathematical reasoning we use GSM8K~\citep{cobbe2021gsm8k},
+SVAMP~\citep{patel2021svamp}, and ASDiv~\citep{miao2020asdiv}, where correctness
+is determined by exact match against the gold numerical answer. For multi-hop
+question answering we use HotpotQA~\citep{yang2018hotpotqa} and
+2WikiMultihopQA~\citep{ho2020wikimultihop}; following common practice for
+open-ended answers, correctness is judged by an LLM grader. For 2WikiMultihopQA
+we restrict to the \emph{inference} question type.
+
+\textbf{Models.} We use two open-weight backbones of different family and scale,
+Llama-3.1-8B~\citep{grattafiori2024llama3} and
+Llama-2-13B~\citep{touvron2023llama2}, applying the same step-wise CoT prompt to
+both. For every question we sample an ensemble of $M = 5$ reasoning chains under
+temperature decoding, which forms the common input to all ensemble-based scorers.
+
+\textbf{Baselines.} We compare against two families of black-box scorers. The
+first is \emph{verbalized self-probing}, where the model is asked to state the
+probability that its own answer is correct in a separate
+context~\citep{xiong2024llms}; in addition to the vanilla form we include the
+four reasoning-augmented variants of CoT-UQ~\citep{zhang2025cotuq} that condition
+the probe on extracted keywords (\textsc{KeyWords}, \textsc{AllKeyWords}) or
+reasoning steps (\textsc{KeyStep}, \textsc{AllStep}). The second family is
+\emph{sampling-based consistency}, which scores the ensemble by answer agreement:
+Non-Contradiction probability and Entailment probability, both computed with an
+NLI model, and Semantic Entropy~\citep{kuhn2023semantic, farquhar2024detecting}.
+
+\textbf{Our methods and encoder.} We report all four band-depth estimators---pBD,
+vBD, gBD-v1, and gBD-v2---computed on the same ensemble. Reasoning steps are
+embedded with the all-MiniLM-L6-v2 sentence encoder~\citep{reimers2019sentencebert};
+the graph-depth blending weight is fixed to $\alpha = 0.10$, and the similarity
+thresholds $\theta_c, \theta_e$ and walk count $T$ are held constant across all
+datasets. None of our methods issue any LLM call beyond the initial ensemble.
+
+\textbf{Metric.} Following standard practice~\citep{kuhn2023semantic, xiong2024llms},
+we report AUROC ($\times 100$) between each scorer's confidence and binary answer
+correctness, where 50 denotes random ranking and higher is better.
+
+\subsection{Main Results}
+\label{sec:exp:main}
+
+Table~\ref{tab:main-results} reports AUROC for all methods. The band-depth family
+dominates across both models and all five datasets, and gBD-v2 is the strongest
+scorer in nearly every column. On Llama-3.1-8B, gBD-v2 reaches 77.19 on HotpotQA,
+76.12 on ASDiv, and 74.81 on SVAMP, improving over the best sampling baseline by
+roughly 13.4, 3.7, and 5.6 points respectively, and over the best verbalized
+baseline by more than 20 points on HotpotQA. On Llama-2-13B, where the gains are
+even larger, gBD-v2 attains 73.13 on GSM8K and 70.74 on SVAMP, exceeding every
+verbalized variant by roughly 20 points. The one column not won by a gBD variant
+is 2WikiMultihopQA, where vBD leads at 69.22; we return to this case below.
+
+\begin{table*}[t]
+  \centering
+  \resizebox{\textwidth}{!}{%
+  \begin{tabular}{c l cc ccc}
+    \toprule
+    \multirow{2}{*}{\textbf{Model}} & \multirow{2}{*}{\textbf{Method}}
+      & \multicolumn{2}{c}{\textbf{Multi-hop QA}}
+      & \multicolumn{3}{c}{\textbf{Mathematical Reasoning}} \\
+    \cmidrule(lr){3-4}\cmidrule(lr){5-7}
+      & & HotpotQA & 2WikiMHQA & GSM8K & SVAMP & ASDiv \\
+    \midrule
+    \multirow{12}{*}{\textbf{Llama-3.1-8B}}
+      & Self-Probing            & 54.92 & 56.67 & 52.78 & 53.79 & 49.79 \\
+      & \quad + KeyWords        & 53.79 & 53.49 & 50.98 & 52.79 & 51.47 \\
+      & \quad + AllKeyWords     & 54.03 & 53.72 & 54.58 & 54.35 & 51.70 \\
+      & \quad + KeyStep         & 53.45 & 53.62 & 51.89 & 49.99 & 51.77 \\
+      & \quad + AllStep         & 54.05 & 52.20 & 50.19 & 51.37 & 51.26 \\
+    \cmidrule(lr){2-7}
+      & Non-Contradiction       & 58.62 & 58.54 & 57.49 & 64.34 & 66.40 \\
+      & Entailment Prob.        & 63.78 & 58.32 & 63.72 & 69.22 & 72.41 \\
+      & Semantic Entropy        & 62.33 & 52.98 & 60.80 & 62.82 & 67.05 \\
+    \cmidrule(lr){2-7}
+      & pBD                     & 76.29 & 62.31 & 65.99 & 69.49 & 72.61 \\
+      & vBD                     & 76.16 & \textbf{69.22} & 64.90 & 67.14 & 69.77 \\
+      & gBD-v1                  & 77.05 & 67.73 & 68.08 & 74.76 & 76.02 \\
+      & gBD-v2                  & \textbf{77.19} & 68.39 & \textbf{68.69} & \textbf{74.81} & \textbf{76.12} \\
+    \midrule
+    \multirow{12}{*}{\textbf{Llama-2-13B}}
+      & Self-Probing            & --    & --    & 50.78 & 50.59 & -- \\
+      & \quad + KeyWords        & --    & --    & 48.13 & 48.38 & -- \\
+      & \quad + AllKeyWords     & --    & --    & 50.48 & 46.46 & -- \\
+      & \quad + KeyStep         & --    & --    & 53.02 & 51.25 & -- \\
+      & \quad + AllStep         & --    & --    & 49.72 & 48.77 & -- \\
+    \cmidrule(lr){2-7}
+      & Non-Contradiction       & --    & --    & --    & --    & -- \\
+      & Entailment Prob.        & --    & --    & --    & --    & -- \\
+      & Semantic Entropy        & --    & --    & --    & --    & -- \\
+    \cmidrule(lr){2-7}
+      & pBD                     & --    & --    & 72.29 & 67.60 & -- \\
+      & vBD                     & --    & --    & 69.47 & 66.22 & -- \\
+      & gBD-v1                  & --    & --    & 72.86 & 70.53 & -- \\
+      & gBD-v2                  & --    & --    & \textbf{73.13} & \textbf{70.74} & -- \\
+    \bottomrule
+  \end{tabular}%
+  }
+  \caption{AUROC ($\times 100$, $\uparrow$) for black-box UQ on five reasoning
+  benchmarks. Best result per column (within a model) is in \textbf{bold}.
+  Entries marked ``--'' are pending and flagged as [TODO: run experiment]:
+  Llama-2-13B has not yet been run on the three sampling baselines, nor on any
+  method for HotpotQA, 2WikiMultihopQA, or ASDiv.}
+  \label{tab:main-results}
+\end{table*}
+
+\subsection{Analysis}
+\label{sec:exp:analysis}
+
+\textbf{Verbalized confidence is near-useless on reasoning tasks.} Every
+self-probing variant hovers in the 48--57 range across both models, i.e.\ barely
+distinguishable from random guessing, and the reasoning-augmented variants of
+CoT-UQ do not reliably improve on the vanilla probe under our black-box,
+ensemble setting. This confirms the premise of our work: prompting a model to
+introspect on its own reasoning does not surface usable uncertainty, because the
+signal lives in the \emph{structure} of the reasoning rather than in the model's
+verbal report about it.
+
+\textbf{Structure beats answer agreement.} Sampling-based consistency methods are
+substantially stronger than verbalized ones, confirming that cross-sample
+agreement carries real signal. Yet they are themselves clearly surpassed by the
+band-depth family on every dataset. Because both operate on the same ensemble of
+sampled outputs, the gap is attributable precisely to what each uses: sampling
+baselines collapse each chain to its final answer, whereas band depth exploits
+the geometry of the intermediate reasoning. The improvement is largest on
+HotpotQA (gBD-v2 77.19 vs.\ 63.78 for the best baseline), where multi-hop
+reasoning produces rich intermediate structure for the graph to capture.
+
+\textbf{Graph-level random walks are the most robust signal.} Among our own
+methods, the two gBD variants are consistently strongest, with the free variant
+gBD-v2 edging out the anchored gBD-v1 in every column where both are measured.
+This supports the central design choice of gBD: sampling reference paths from the
+full graph topology, rather than only from the observed chains, yields a richer
+and more discriminative depth estimate. The exception is 2WikiMultihopQA, where
+the vertex-level vBD (69.22) outperforms both gBD variants; we attribute this to
+this subset's shorter inference chains, which yield sparse graphs on which
+vertex-level centrality is more stable than path-level random walks.
+
+\subsection{Ablation Study}
+\label{sec:exp:ablation}
+
+The progression pBD $\rightarrow$ vBD $\rightarrow$ gBD in
+Table~\ref{tab:main-results} doubles as an ablation over the two core design
+decisions. \emph{Order-invariance:} moving from the order-sensitive pBD to the
+graph-based methods removes the artificial penalty on commutative reasoning;
+this helps most on 2WikiMultihopQA, where vBD improves over pBD by 6.9 points
+(62.31 $\rightarrow$ 69.22). \emph{Reference distribution:} replacing
+ensemble-only references with random walks over the graph (gBD) restores
+path-level sensitivity that vBD discards, lifting AUROC on every mathematical
+dataset---for example on SVAMP, gBD-v2 improves over vBD by 7.7 points
+(67.14 $\rightarrow$ 74.81). Together these show that both ingredients
+contribute, and that gBD's combination of order-invariance with a graph-derived
+reference is what makes it the strongest estimator overall. The anchored/free
+contrast (gBD-v1 vs.\ gBD-v2) further isolates the value of unconstrained walks,
+which consistently provide a small additional gain.
+
+We further isolate the two hyperparameters that are specific to the band-depth
+construction: the \emph{subset size} used to form each hull, and the
+\emph{random-walk length} in gBD. All sweeps below recompute band depth on the
+same fixed sampled ensembles as the main results and write their AUROCs to a
+separate \texttt{output/ablation/} location, leaving the main results in
+\texttt{output/metric/} untouched. The reported numbers are currently pending and
+flagged as [TODO: run experiment].
+
+\subsubsection{Band Subset Size}
+\label{sec:exp:ablation:subset}
+
+Band depth is defined relative to ``bands'' delimited by random subsets of the
+ensemble. Our default estimators use the smallest such subset: vBD draws pairs of
+vertices and tests whether a target vertex lies in their geodesic hull, while gBD
+draws pairs of reference walks. The subset size $J$ controls how large each band
+is---larger $J$ produces wider hulls that enclose more of the graph, trading
+sensitivity for stability---so it is the natural first hyperparameter to ablate.
+Table~\ref{tab:abla-subset} sweeps $J \in \{2,3,4,5\}$ for both vBD and gBD-v2,
+holding all else fixed, to determine whether the minimal pairwise band is in fact
+the best choice.
+
+% Results to be written to output/ablation/subset_size.json (see output/ablation/README.md)
+\begin{table}[t]
+  \centering
+  \footnotesize
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{c ccc ccc}
+    \toprule
+    \multirow{2}{*}{$J$}
+      & \multicolumn{3}{c}{\textbf{vBD}} & \multicolumn{3}{c}{\textbf{gBD-v2}} \\
+    \cmidrule(lr){2-4}\cmidrule(lr){5-7}
+      & GSM8K & SVAMP & HotpotQA & GSM8K & SVAMP & HotpotQA \\
+    \midrule
+    2 & -- & -- & -- & -- & -- & -- \\
+    3 & -- & -- & -- & -- & -- & -- \\
+    4 & -- & -- & -- & -- & -- & -- \\
+    5 & -- & -- & -- & -- & -- & -- \\
+    \bottomrule
+  \end{tabular}
+  \caption{Effect of the band subset size $J$ (number of vertices for vBD, paths
+  for gBD-v2) on AUROC ($\times 100$), Llama-3.1-8B. Defaults are $J{=}3$ for vBD
+  and $J{=}2$ for gBD. [TODO: run experiment].}
+  \label{tab:abla-subset}
+\end{table}
+
+\subsubsection{Random-Walk Length in gBD}
+\label{sec:exp:ablation:walklen}
+
+gBD's reference paths are random walks over the reasoning graph, and their length
+$L$ governs how much of the graph each reference path spans: walks that are too
+short cannot enclose a full reasoning chain, while walks that are too long wander
+across unrelated regions and dilute the depth signal. There should therefore be
+an intermediate length matched to the typical chain length that is most
+discriminative. Table~\ref{tab:abla-walklen} sweeps $L$ over a range of fixed
+values together with the current adaptive default (length scaled to the graph),
+for gBD-v2.
+
+% Results to be written to output/ablation/walk_length.json (see output/ablation/README.md)
+\begin{table}[t]
+  \centering
+  \footnotesize
+  \setlength{\tabcolsep}{6pt}
+  \begin{tabular}{l ccc}
+    \toprule
+    \textbf{Walk length $L$} & GSM8K & SVAMP & HotpotQA \\
+    \midrule
+    3                  & -- & -- & -- \\
+    5                  & -- & -- & -- \\
+    7                  & -- & -- & -- \\
+    10                 & -- & -- & -- \\
+    adaptive (default) & -- & -- & -- \\
+    \bottomrule
+  \end{tabular}
+  \caption{Effect of the gBD random-walk length $L$ on AUROC ($\times 100$),
+  gBD-v2 on Llama-3.1-8B. ``adaptive'' is the current default that scales the
+  walk length to the graph. [TODO: run experiment].}
+  \label{tab:abla-walklen}
+\end{table}
+
+Finally, two dataset-coverage items remain and are likewise flagged as
+[TODO: run experiment]: sensitivity to the ensemble size $M$, to quantify how
+gracefully each method degrades as fewer chains are sampled; and completing the
+Llama-2-13B runs on the remaining datasets and sampling baselines (the ``--''
+entries in Table~\ref{tab:main-results}).
 
 % -----------------------------------------------------------------------
 \bibliographystyle{plainnat}

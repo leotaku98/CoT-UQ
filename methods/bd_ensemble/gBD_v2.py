@@ -60,6 +60,19 @@ ALPHA: float = 0.30
 INPUT_VERTEX: int = -1
 OUTPUT_VERTEX: int = -2
 
+# Ablation override: subset size J = number of reference walks forming each band.
+N_WALKS: int = args.subset_size if args.subset_size else 2
+
+
+def _conf_path(confidences_dir: str) -> str:
+    """Confidence output path; suffixed and relocated under ablation mode."""
+    if not args.ablation:
+        return os.path.join(confidences_dir, "ensemble_v1_gBD_v2.json")
+    abl_dir = os.path.join(confidences_dir, "ablation")
+    os.makedirs(abl_dir, exist_ok=True)
+    suffix = f"subset_size_{N_WALKS}" if args.ablation == "subset_size" else f"walk_length_{args.walk_length}"
+    return os.path.join(abl_dir, f"ensemble_v1_gBD_v2_{suffix}.json")
+
 _STEP_RE = __import__("re").compile(r"^Step\s+\d+\s*:\s*", __import__("re").IGNORECASE)
 
 
@@ -267,13 +280,15 @@ def _path_band_depths(
     G_undirected: nx.Graph,
     n_trials: int,
     walk_length: int,
+    n_walks: int = 2,
 ) -> list[float]:
     """
-    For each chain P_i, estimate anchored band depth via paired random walks.
+    For each chain P_i, estimate anchored band depth via random reference walks.
 
     Each trial:
-      1. Generate two anchored walks P_a, P_b (INPUT → ... → OUTPUT).
-      2. Compute geodesic hull of {P_a, P_b}.
+      1. Generate n_walks anchored walks (INPUT → ... → OUTPUT).
+      2. Compute the geodesic hull as the union over all walk pairs.
+         (n_walks=2 reduces to a single pair, the default behaviour.)
       3. Score = fraction of P_i's step vertices inside the hull.
          (INPUT and OUTPUT anchors are excluded from P_i's vertex sequence.)
     BD(P_i) = mean score over n_trials.
@@ -288,9 +303,11 @@ def _path_band_depths(
 
         trial_scores = []
         for _ in range(n_trials):
-            p_a = _anchored_walk(G_undirected, walk_length, rng)
-            p_b = _anchored_walk(G_undirected, walk_length, rng)
-            hull = _compute_hull(p_a, p_b, spl, all_vertices)
+            walks = [_anchored_walk(G_undirected, walk_length, rng) for _ in range(n_walks)]
+            hull: set[int] = set()
+            for i in range(len(walks)):
+                for k in range(i + 1, len(walks)):
+                    hull |= _compute_hull(walks[i], walks[k], spl, all_vertices)
             # Score only on reasoning step vertices (not INPUT/OUTPUT anchors)
             step_verts = [v for v in seq if v != INPUT_VERTEX and v != OUTPUT_VERTEX]
             if step_verts:
@@ -333,7 +350,7 @@ def gBD_v2_uq() -> None:
     input_path = os.path.join(args.output_path, "ensemble_v1.json")
     confidences_dir = os.path.join(args.output_path, "confidences")
     os.makedirs(confidences_dir, exist_ok=True)
-    output_path = os.path.join(confidences_dir, "ensemble_v1_gBD_v2.json")
+    output_path = _conf_path(confidences_dir)
 
     if not os.path.exists(input_path):
         raise FileNotFoundError(f"Ensemble file not found: {input_path}")
@@ -392,13 +409,16 @@ def gBD_v2_uq() -> None:
                 else:
                     spl = _all_pairs_spl(G)
                     G_undirected = G.to_undirected()
-                    walk_length = max(2, int(round(
-                        np.mean([len(seq) for seq in chain_vseqs if seq])
-                    )))
+                    if args.walk_length != "adaptive":
+                        walk_length = int(args.walk_length)
+                    else:
+                        walk_length = max(2, int(round(
+                            np.mean([len(seq) for seq in chain_vseqs if seq])
+                        )))
 
                     bd = _path_band_depths(
                         chain_vseqs, spl, all_vertices,
-                        G_undirected, N_TRIALS, walk_length,
+                        G_undirected, N_TRIALS, walk_length, N_WALKS,
                     )
                     bd_score = float(np.mean(bd))
 
@@ -424,7 +444,7 @@ def compute_auroc() -> None:
     from torchmetrics import AUROC
 
     labels_path = os.path.join(args.output_path, "output_v1_w_labels.json")
-    conf_path = os.path.join(args.output_path, "confidences", "ensemble_v1_gBD_v2.json")
+    conf_path = _conf_path(os.path.join(args.output_path, "confidences"))
 
     if not os.path.exists(labels_path):
         print(f"Labels file not found, skipping AUROC: {labels_path}")
@@ -456,14 +476,26 @@ def compute_auroc() -> None:
     auroc_value = auroc_fn(torch.tensor(confidences), torch.tensor(targets))
     print(f"AUROC (gBD_v2, {args.dataset}): {auroc_value.item():.6f}  (n={len(confidences)})")
 
-    result_path = os.path.join("output", "metric", args.dataset + ".json")
-    os.makedirs(os.path.dirname(result_path), exist_ok=True)
-    results = {}
-    if os.path.exists(result_path):
-        with open(result_path, encoding="utf-8") as f:
-            results = json.load(f)
-
-    results.setdefault(args.model_engine, {})["gBD_v2"] = round(auroc_value.item(), 6)
+    if args.ablation:
+        # Ablation: write to output/ablation/<ablation>.json, leaving output/metric untouched.
+        result_path = os.path.join("output", "ablation", args.ablation + ".json")
+        param_key = str(N_WALKS) if args.ablation == "subset_size" else str(args.walk_length)
+        os.makedirs(os.path.dirname(result_path), exist_ok=True)
+        results = {}
+        if os.path.exists(result_path):
+            with open(result_path, encoding="utf-8") as f:
+                results = json.load(f)
+        (results.setdefault(args.model_engine, {})
+                .setdefault("gBD_v2", {})
+                .setdefault(param_key, {}))[args.dataset] = round(auroc_value.item(), 6)
+    else:
+        result_path = os.path.join("output", "metric", args.dataset + ".json")
+        os.makedirs(os.path.dirname(result_path), exist_ok=True)
+        results = {}
+        if os.path.exists(result_path):
+            with open(result_path, encoding="utf-8") as f:
+                results = json.load(f)
+        results.setdefault(args.model_engine, {})["gBD_v2"] = round(auroc_value.item(), 6)
 
     with open(result_path, "w", encoding="utf-8") as f:
         json.dump(results, f, indent=2, ensure_ascii=False)

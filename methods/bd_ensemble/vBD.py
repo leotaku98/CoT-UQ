@@ -41,6 +41,20 @@ SIM_THRESHOLD = 0.92   # cosine similarity threshold for step clustering
 ALPHA = 0.90      # weight on process-level (vBD) vs outcome-level (majority vote)
 # ──────────────────────────────────────────────────────────────────────────────
 
+# Ablation override: subset size J (number of vertices sampled per hull).
+if args.subset_size:
+    J = args.subset_size
+
+
+def _conf_path(confidences_dir: str) -> str:
+    """Confidence output path; suffixed and relocated under ablation mode."""
+    if not args.ablation:
+        return os.path.join(confidences_dir, "ensemble_v1_vBD.json")
+    abl_dir = os.path.join(confidences_dir, "ablation")
+    os.makedirs(abl_dir, exist_ok=True)
+    suffix = f"subset_size_{J}" if args.ablation == "subset_size" else f"walk_length_{args.walk_length}"
+    return os.path.join(abl_dir, f"ensemble_v1_vBD_{suffix}.json")
+
 
 # ── Step 1: Parse CoT response into ordered step texts ────────────────────────
 
@@ -261,7 +275,7 @@ def vBD_uq() -> None:
     input_path = os.path.join(args.output_path, "ensemble_v1.json")
     confidences_dir = os.path.join(args.output_path, "confidences")
     os.makedirs(confidences_dir, exist_ok=True)
-    output_path = os.path.join(confidences_dir, "ensemble_v1_vBD.json")
+    output_path = _conf_path(confidences_dir)
 
     if not os.path.exists(input_path):
         raise FileNotFoundError(f"Ensemble file not found: {input_path}")
@@ -353,7 +367,7 @@ def compute_auroc() -> None:
     from torchmetrics import AUROC
 
     labels_path = os.path.join(args.output_path, "output_v1_w_labels.json")
-    conf_path = os.path.join(args.output_path, "confidences", "ensemble_v1_vBD.json")
+    conf_path = _conf_path(os.path.join(args.output_path, "confidences"))
 
     if not os.path.exists(labels_path):
         print(f"Labels file not found, skipping AUROC: {labels_path}")
@@ -385,14 +399,26 @@ def compute_auroc() -> None:
     auroc_value = auroc_fn(torch.tensor(confidences), torch.tensor(targets))
     print(f"AUROC (vBD, {args.dataset}): {auroc_value.item():.6f}  (n={len(confidences)})")
 
-    result_path = os.path.join("output", "metric", args.dataset + ".json")
-    os.makedirs(os.path.dirname(result_path), exist_ok=True)
-    results = {}
-    if os.path.exists(result_path):
-        with open(result_path, encoding="utf-8") as f:
-            results = json.load(f)
-
-    results.setdefault(args.model_engine, {})["vBD"] = round(auroc_value.item(), 6)
+    if args.ablation:
+        # Ablation: write to output/ablation/<ablation>.json, leaving output/metric untouched.
+        result_path = os.path.join("output", "ablation", args.ablation + ".json")
+        param_key = str(J) if args.ablation == "subset_size" else str(args.walk_length)
+        os.makedirs(os.path.dirname(result_path), exist_ok=True)
+        results = {}
+        if os.path.exists(result_path):
+            with open(result_path, encoding="utf-8") as f:
+                results = json.load(f)
+        (results.setdefault(args.model_engine, {})
+                .setdefault("vBD", {})
+                .setdefault(param_key, {}))[args.dataset] = round(auroc_value.item(), 6)
+    else:
+        result_path = os.path.join("output", "metric", args.dataset + ".json")
+        os.makedirs(os.path.dirname(result_path), exist_ok=True)
+        results = {}
+        if os.path.exists(result_path):
+            with open(result_path, encoding="utf-8") as f:
+                results = json.load(f)
+        results.setdefault(args.model_engine, {})["vBD"] = round(auroc_value.item(), 6)
 
     with open(result_path, "w", encoding="utf-8") as f:
         json.dump(results, f, indent=2, ensure_ascii=False)
