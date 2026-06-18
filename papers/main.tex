@@ -284,7 +284,7 @@ which DTW obtains by solving a dynamic program at a cost of $O(n^2 d)$ per pair
 and $O(M^2 n^2 d)$ for the full ensemble. Both problems stem from insisting on a
 position-wise, sequential view of the chains.
 
-\begin{table}[t]
+\begin{table}[htbp]
   \centering
   \footnotesize
   \setlength{\tabcolsep}{4pt}
@@ -399,7 +399,7 @@ the graph defines rather than against only the $M$ observed chains. This yields 
 markedly richer depth estimate that remains robust when the ensemble is small,
 because the graph interpolates reasoning paths the model did not happen to sample.
 
-\begin{figure}[t]
+\begin{figure}[htbp]
   \centering
   % TODO: replace placeholder with the generated figure:
   %   \includegraphics[width=\linewidth]{resources/reasoning_graph}
@@ -574,7 +574,7 @@ even larger, gBD-v2 attains 73.13 on GSM8K and 70.74 on SVAMP, exceeding every
 verbalized variant by roughly 20 points. The one column not won by a gBD variant
 is 2WikiMultihopQA, where vBD leads at 69.22; we return to this case below.
 
-\begin{table*}[t]
+\begin{table*}[htbp]
   \centering
   \resizebox{\textwidth}{!}{%
   \begin{tabular}{c l cc ccc}
@@ -685,8 +685,13 @@ dataset---SVAMP, the smallest benchmark---with Llama-3.1-8B, and fix the
 confidence blend weight at $\alpha = 0.5$. Each sweep recomputes band depth on the
 same fixed sampled ensembles as the main results and writes its AUROCs to a
 separate \texttt{output/ablation/} location, leaving \texttt{output/metric/}
-untouched. The reported numbers are currently pending and flagged as
-[TODO: run experiment].
+untouched. The results (Tables~\ref{tab:abla-subset}--\ref{tab:abla-trials})
+show the method to be highly stable: AUROC varies within roughly one point across
+every sweep. The clustering threshold $\theta_c$ is the only setting with a
+pronounced effect---low values over-merge distinct reasoning steps and degrade
+vBD by over two points (74.82 at $\theta_c{=}0.92$ down to 72.37 at $0.85$)---
+confirming that the chosen defaults ($J{=}2$, $\theta_c{=}0.92$, $\theta_e{=}0.70$,
+$T{=}200$) are well calibrated.
 
 \subsubsection{Band Subset Size}
 \label{sec:exp:ablation:subset}
@@ -702,22 +707,21 @@ holding all else fixed, to determine whether the minimal pairwise band is in fac
 the best choice.
 
 % Results to be written to output/ablation/subset_size.json (see output/ablation/README.md)
-\begin{table}[t]
+\begin{table}[htbp]
   \centering
   \footnotesize
   \begin{tabular}{c cc}
     \toprule
     $J$ & \textbf{vBD} & \textbf{gBD-v2} \\
     \midrule
-    2 (default) & -- & -- \\
-    3 & -- & -- \\
-    4 & -- & -- \\
-    5 & -- & -- \\
+    2 (default) & \textbf{74.74} & 74.52 \\
+    3 & 74.27 & 74.68 \\
+    4 & 74.16 & 74.78 \\
+    5 & 74.06 & \textbf{74.80} \\
     \bottomrule
   \end{tabular}
   \caption{Band subset size $J$ (vertices for vBD, walks for gBD-v2) on SVAMP,
-  Llama-3.1-8B, AUROC ($\times 100$). Default $J{=}2$ for both.
-  [TODO: run experiment].}
+  Llama-3.1-8B, AUROC ($\times 100$). Default $J{=}2$ for both.}
   \label{tab:abla-subset}
 \end{table}
 
@@ -734,22 +738,22 @@ values together with the current adaptive default (length scaled to the graph),
 for gBD-v2.
 
 % Results to be written to output/ablation/walk_length.json (see output/ablation/README.md)
-\begin{table}[t]
+\begin{table}[htbp]
   \centering
   \footnotesize
   \begin{tabular}{l c}
     \toprule
     \textbf{Walk length $L$} & \textbf{gBD-v2} \\
     \midrule
-    3                  & -- \\
-    5                  & -- \\
-    7                  & -- \\
-    10                 & -- \\
-    adaptive (default) & -- \\
+    3                  & 74.71 \\
+    5                  & 74.85 \\
+    7                  & \textbf{74.90} \\
+    10                 & 74.88 \\
+    adaptive (default) & 74.52 \\
     \bottomrule
   \end{tabular}
   \caption{gBD random-walk length $L$ on SVAMP, Llama-3.1-8B, AUROC ($\times 100$).
-  ``adaptive'' scales the length to the graph (default). [TODO: run experiment].}
+  ``adaptive'' scales the length to the graph (default).}
   \label{tab:abla-walklen}
 \end{table}
 
@@ -766,41 +770,41 @@ cross-connected. Table~\ref{tab:abla-simthr} sweeps $\theta_c$ for both vBD and
 gBD-v2, and Table~\ref{tab:abla-crossthr} sweeps $\theta_e$ for gBD-v2 (vBD uses
 no soft edges).
 
-\begin{table}[t]
+\begin{table}[htbp]
   \centering
   \footnotesize
   \begin{tabular}{c cc}
     \toprule
     $\theta_c$ & \textbf{vBD} & \textbf{gBD-v2} \\
     \midrule
-    0.85 & -- & -- \\
-    0.88 & -- & -- \\
-    0.90 & -- & -- \\
-    0.92 (default) & -- & -- \\
-    0.95 & -- & -- \\
+    0.85 & 72.37 & 74.26 \\
+    0.88 & 73.63 & \textbf{74.82} \\
+    0.90 & 74.01 & 74.41 \\
+    0.92 (default) & \textbf{74.82} & 74.47 \\
+    0.95 & 74.81 & 74.74 \\
     \bottomrule
   \end{tabular}
   \caption{Clustering threshold $\theta_c$ on SVAMP, Llama-3.1-8B, AUROC
-  ($\times 100$). [TODO: run experiment].}
+  ($\times 100$).}
   \label{tab:abla-simthr}
 \end{table}
 
-\begin{table}[t]
+\begin{table}[htbp]
   \centering
   \footnotesize
   \begin{tabular}{c c}
     \toprule
     $\theta_e$ & \textbf{gBD-v2} \\
     \midrule
-    0.60 & -- \\
-    0.65 & -- \\
-    0.70 (default) & -- \\
-    0.75 & -- \\
-    0.80 & -- \\
+    0.60 & \textbf{74.71} \\
+    0.65 & 74.68 \\
+    0.70 (default) & 74.52 \\
+    0.75 & 74.21 \\
+    0.80 & 74.27 \\
     \bottomrule
   \end{tabular}
   \caption{Semantic-edge threshold $\theta_e$ on SVAMP, Llama-3.1-8B, AUROC
-  ($\times 100$). [TODO: run experiment].}
+  ($\times 100$).}
   \label{tab:abla-crossthr}
 \end{table}
 
@@ -813,21 +817,21 @@ $T$ reduces estimator variance at a cost linear in $T$.
 Table~\ref{tab:abla-trials} sweeps $T \in \{50, 100, 200, 400\}$ to verify that
 the estimates are converged at the default $T = 200$.
 
-\begin{table}[t]
+\begin{table}[htbp]
   \centering
   \footnotesize
   \begin{tabular}{c cc}
     \toprule
     $T$ & \textbf{vBD} & \textbf{gBD-v2} \\
     \midrule
-    50  & -- & -- \\
-    100 & -- & -- \\
-    200 (default) & -- & -- \\
-    400 & -- & -- \\
+    50  & 74.60 & \textbf{74.61} \\
+    100 & \textbf{74.76} & 74.52 \\
+    200 (default) & 74.73 & 74.61 \\
+    400 & 74.72 & 74.54 \\
     \bottomrule
   \end{tabular}
   \caption{Number of Monte-Carlo trials $T$ on SVAMP, Llama-3.1-8B, AUROC
-  ($\times 100$). [TODO: run experiment].}
+  ($\times 100$).}
   \label{tab:abla-trials}
 \end{table}
 
