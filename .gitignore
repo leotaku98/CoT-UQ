@@ -43,6 +43,7 @@ env/
 output/
 tmp/
 *.log
+.claude/docs/PROGRESS.md
 
 # Hugging Face cache
 .cache/

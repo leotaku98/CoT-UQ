@@ -38,7 +38,10 @@
       "Bash(export HF_HOME=/data/haowhuan/.cache/huggingface)",
       "Bash(export HF_HUB_OFFLINE=1)",
       "Bash(/home/haowhuan/Data/miniconda3/envs/cotuq/bin/python3 methods/bd_ensemble/vBD.py --dataset gsm8k --model_engine llama2-13b)",
-      "Bash(/home/haowhuan/Data/miniconda3/envs/cotuq/bin/python3 methods/bd_ensemble/gBD_v2.py --dataset gsm8k --model_engine llama2-13b)"
+      "Bash(/home/haowhuan/Data/miniconda3/envs/cotuq/bin/python3 methods/bd_ensemble/gBD_v2.py --dataset gsm8k --model_engine llama2-13b)",
+      "WebSearch",
+      "WebFetch(domain:journals.ametsoc.org)",
+      "WebFetch(domain:api.crossref.org)"
     ],
     "additionalDirectories": [
       "/data/haowhuan/PycharmProjects/CoT-UQ/tmp"
