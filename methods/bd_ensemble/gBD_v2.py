@@ -54,14 +54,31 @@ ENCODER_MODEL = "all-MiniLM-L6-v2"
 SIM_THRESHOLD: float = 0.92    # cosine sim >= this → merge into same vertex
 CROSS_SIM_THRESHOLD: Optional[float] = 0.70  # cosine sim in [CROSS, SIM) → add soft edge
 N_TRIALS: int = 200
-ALPHA: float = 0.30
+ALPHA: float = 0.5 if args.ablation else 0.3
 # ──────────────────────────────────────────────────────────────────────────────
 
 INPUT_VERTEX: int = -1
 OUTPUT_VERTEX: int = -2
 
-# Ablation override: subset size J = number of reference walks forming each band.
-N_WALKS: int = args.subset_size if args.subset_size else 2
+# Ablation overrides (opt-in; sentinel defaults leave the method defaults intact).
+N_WALKS: int = args.subset_size if args.subset_size else 2   # subset size J = # reference walks
+if args.sim_threshold > 0:
+    SIM_THRESHOLD = args.sim_threshold
+if args.cross_threshold >= 0:
+    CROSS_SIM_THRESHOLD = args.cross_threshold
+if args.n_trials:
+    N_TRIALS = args.n_trials
+
+
+def _ablation_key() -> str:
+    """Swept-parameter value, used in ablation filenames and result keys."""
+    return {
+        "subset_size": str(N_WALKS),
+        "walk_length": str(args.walk_length),
+        "sim_threshold": str(SIM_THRESHOLD),
+        "cross_threshold": str(CROSS_SIM_THRESHOLD),
+        "n_trials": str(N_TRIALS),
+    }.get(args.ablation, "")
 
 
 def _conf_path(confidences_dir: str) -> str:
@@ -70,8 +87,7 @@ def _conf_path(confidences_dir: str) -> str:
         return os.path.join(confidences_dir, "ensemble_v1_gBD_v2.json")
     abl_dir = os.path.join(confidences_dir, "ablation")
     os.makedirs(abl_dir, exist_ok=True)
-    suffix = f"subset_size_{N_WALKS}" if args.ablation == "subset_size" else f"walk_length_{args.walk_length}"
-    return os.path.join(abl_dir, f"ensemble_v1_gBD_v2_{suffix}.json")
+    return os.path.join(abl_dir, f"ensemble_v1_gBD_v2_{args.ablation}_{_ablation_key()}.json")
 
 _STEP_RE = __import__("re").compile(r"^Step\s+\d+\s*:\s*", __import__("re").IGNORECASE)
 
@@ -479,7 +495,7 @@ def compute_auroc() -> None:
     if args.ablation:
         # Ablation: write to output/ablation/<ablation>.json, leaving output/metric untouched.
         result_path = os.path.join("output", "ablation", args.ablation + ".json")
-        param_key = str(N_WALKS) if args.ablation == "subset_size" else str(args.walk_length)
+        param_key = _ablation_key()
         os.makedirs(os.path.dirname(result_path), exist_ok=True)
         results = {}
         if os.path.exists(result_path):

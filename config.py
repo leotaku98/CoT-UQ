@@ -50,7 +50,20 @@ def parse_arguments():
         help="ablation: gBD random-walk length; an integer, or 'adaptive' (default, scales to graph)"
     )
     parser.add_argument(
-        "--ablation", type=str, default="", choices=["", "subset_size", "walk_length"],
+        "--sim_threshold", type=float, default=0.0,
+        help="ablation: clustering threshold theta_c (merge steps into one node); 0 = method default"
+    )
+    parser.add_argument(
+        "--cross_threshold", type=float, default=-1.0,
+        help="ablation: gBD semantic-edge threshold theta_e (soft cross-chain edges); <0 = method default"
+    )
+    parser.add_argument(
+        "--n_trials", type=int, default=0,
+        help="ablation: number of Monte-Carlo subset samples per estimate; 0 = method default"
+    )
+    parser.add_argument(
+        "--ablation", type=str, default="",
+        choices=["", "subset_size", "walk_length", "sim_threshold", "cross_threshold", "n_trials"],
         help="ablation mode; routes AUROC to output/ablation/<ablation>.json instead of output/metric"
     )
     parser.add_argument(

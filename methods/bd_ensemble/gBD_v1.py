@@ -52,7 +52,7 @@ ENCODER_MODEL = "all-MiniLM-L6-v2"
 SIM_THRESHOLD: float = 0.92    # cosine sim >= this → merge into same vertex
 CROSS_SIM_THRESHOLD: Optional[float] = 0.70  # cosine sim in [CROSS, SIM) → add soft edge
 N_TRIALS: int = 200
-ALPHA: float = 0.30
+ALPHA: float = 0.5 if args.ablation else 0.3
 # ──────────────────────────────────────────────────────────────────────────────
 
 INPUT_VERTEX: int = -1

@@ -260,8 +260,9 @@ steps across the other chains,
   \cos\!\left( e\big(s_k^{(m)}\big),\;
   \frac{1}{M-1} \sum_{r \neq m} e\big(s_{\sigma_r(k)}^{(r)}\big) \right),
 \end{equation}
-and the prompt-level confidence is the mean depth over the ensemble,
-$\hat{s} = \frac{1}{M} \sum_{m=1}^{M} s^{(m)}$.
+and the ensemble-mean depth $\bar{s} = \frac{1}{M} \sum_{m=1}^{M} s^{(m)}$ is
+then combined with answer agreement to form the final confidence through the
+shared blend of Eq.~\eqref{eq:blend}.
 
 Despite capturing uncertainty in the CoT chain, pBD has its own weakness. In Table~\ref{tab:ensemble-example}, the four chains were produced for a
 single HotpotQA question and all reach the correct answer ``We Are the Ocean''
@@ -355,8 +356,8 @@ chain is the mean vertex depth over the nodes it visits,
 \begin{equation}
   c\text{BD}\big(P^{(m)}\big) = \frac{1}{|P^{(m)}|} \sum_{v \in P^{(m)}} v\text{BD}(v),
 \end{equation}
-and the prompt-level confidence is again the ensemble mean,
-$\hat{s} = \frac{1}{M} \sum_{m=1}^{M} c\text{BD}(P^{(m)})$.
+and the ensemble-mean depth $\bar{s} = \frac{1}{M} \sum_{m=1}^{M} c\text{BD}(P^{(m)})$
+again enters the shared confidence blend of Eq.~\eqref{eq:blend}.
 
 Beyond graph construction, vBD requires only $S$ sampled vertex pairs from $V$,
 each needing a geodesic-hull membership test, and is far cheaper than pBD's
@@ -426,14 +427,20 @@ averaged over the $T$ draws,
   \text{gBD}\big(P^{(m)}\big) = \frac{1}{T} \sum_{t=1}^{T}
   \frac{\big|\{\, v \in P^{(m)} : v \in \text{hull}(W_a^{(t)}, W_b^{(t)}) \,\}\big|}{|P^{(m)}|}.
 \end{equation}
-The final confidence blends the mean graph depth with the answer-level majority
-fraction $\rho$ (the share of chains agreeing with the modal answer),
+The final confidence blends the mean depth $\bar{s}$ with the answer-level
+majority fraction $\rho$ (the share of chains agreeing with the modal answer),
 \begin{equation}
-  \hat{s} = \alpha \, \overline{\text{gBD}} + (1 - \alpha)\, \rho,
-  \qquad \alpha = 0.10,
+\label{eq:blend}
+  \hat{s} = \alpha \, \bar{s} + (1 - \alpha)\, \rho.
 \end{equation}
-where $\overline{\text{gBD}} = \frac{1}{M}\sum_m \text{gBD}(P^{(m)})$. We
-consider two variants for generating the reference walks:
+For gBD $\bar{s} = \overline{\text{gBD}} = \frac{1}{M}\sum_m \text{gBD}(P^{(m)})$,
+and the same form of blend is applied to all three estimators, substituting the
+corresponding depth score $\bar{s}$ of pBD or vBD. The weight $\alpha$ trades
+reasoning-structure depth against answer agreement: in our main results we use
+$\alpha = 0.9$ for pBD and vBD and $\alpha = 0.3$ for gBD, whereas the ablation
+study (Section~\ref{sec:exp:ablation}) holds $\alpha = 0.5$ fixed across methods
+to isolate the remaining hyperparameters. We consider two variants for generating
+the reference walks:
 \begin{itemize}
   \item \textbf{gBD-v1 (anchored):} walks are constrained to start at the graph's
         input node and end at its output node, following the global
@@ -670,13 +677,16 @@ reference is what makes it the strongest estimator overall. The anchored/free
 contrast (gBD-v1 vs.\ gBD-v2) further isolates the value of unconstrained walks,
 which consistently provide a small additional gain.
 
-We further isolate the two hyperparameters that are specific to the band-depth
-construction: the \emph{subset size} used to form each hull, and the
-\emph{random-walk length} in gBD. All sweeps below recompute band depth on the
-same fixed sampled ensembles as the main results and write their AUROCs to a
-separate \texttt{output/ablation/} location, leaving the main results in
-\texttt{output/metric/} untouched. The reported numbers are currently pending and
-flagged as [TODO: run experiment].
+We further isolate the hyperparameters specific to the band-depth construction:
+the band \emph{subset size}, the gBD \emph{random-walk length}, the two graph
+similarity \emph{thresholds}, and the number of Monte-Carlo \emph{trials}. To keep
+the study tractable, all ablations below are run on a single representative
+dataset---SVAMP, the smallest benchmark---with Llama-3.1-8B, and fix the
+confidence blend weight at $\alpha = 0.5$. Each sweep recomputes band depth on the
+same fixed sampled ensembles as the main results and writes its AUROCs to a
+separate \texttt{output/ablation/} location, leaving \texttt{output/metric/}
+untouched. The reported numbers are currently pending and flagged as
+[TODO: run experiment].
 
 \subsubsection{Band Subset Size}
 \label{sec:exp:ablation:subset}
@@ -695,23 +705,19 @@ the best choice.
 \begin{table}[t]
   \centering
   \footnotesize
-  \setlength{\tabcolsep}{4pt}
-  \begin{tabular}{c ccc ccc}
+  \begin{tabular}{c cc}
     \toprule
-    \multirow{2}{*}{$J$}
-      & \multicolumn{3}{c}{\textbf{vBD}} & \multicolumn{3}{c}{\textbf{gBD-v2}} \\
-    \cmidrule(lr){2-4}\cmidrule(lr){5-7}
-      & GSM8K & SVAMP & HotpotQA & GSM8K & SVAMP & HotpotQA \\
+    $J$ & \textbf{vBD} & \textbf{gBD-v2} \\
     \midrule
-    2 & -- & -- & -- & -- & -- & -- \\
-    3 & -- & -- & -- & -- & -- & -- \\
-    4 & -- & -- & -- & -- & -- & -- \\
-    5 & -- & -- & -- & -- & -- & -- \\
+    2 (default) & -- & -- \\
+    3 & -- & -- \\
+    4 & -- & -- \\
+    5 & -- & -- \\
     \bottomrule
   \end{tabular}
-  \caption{Effect of the band subset size $J$ (number of vertices for vBD, paths
-  for gBD-v2) on AUROC ($\times 100$), Llama-3.1-8B. Defaults are $J{=}3$ for vBD
-  and $J{=}2$ for gBD. [TODO: run experiment].}
+  \caption{Band subset size $J$ (vertices for vBD, walks for gBD-v2) on SVAMP,
+  Llama-3.1-8B, AUROC ($\times 100$). Default $J{=}2$ for both.
+  [TODO: run experiment].}
   \label{tab:abla-subset}
 \end{table}
 
@@ -731,29 +737,105 @@ for gBD-v2.
 \begin{table}[t]
   \centering
   \footnotesize
-  \setlength{\tabcolsep}{6pt}
-  \begin{tabular}{l ccc}
+  \begin{tabular}{l c}
     \toprule
-    \textbf{Walk length $L$} & GSM8K & SVAMP & HotpotQA \\
+    \textbf{Walk length $L$} & \textbf{gBD-v2} \\
     \midrule
-    3                  & -- & -- & -- \\
-    5                  & -- & -- & -- \\
-    7                  & -- & -- & -- \\
-    10                 & -- & -- & -- \\
-    adaptive (default) & -- & -- & -- \\
+    3                  & -- \\
+    5                  & -- \\
+    7                  & -- \\
+    10                 & -- \\
+    adaptive (default) & -- \\
     \bottomrule
   \end{tabular}
-  \caption{Effect of the gBD random-walk length $L$ on AUROC ($\times 100$),
-  gBD-v2 on Llama-3.1-8B. ``adaptive'' is the current default that scales the
-  walk length to the graph. [TODO: run experiment].}
+  \caption{gBD random-walk length $L$ on SVAMP, Llama-3.1-8B, AUROC ($\times 100$).
+  ``adaptive'' scales the length to the graph (default). [TODO: run experiment].}
   \label{tab:abla-walklen}
 \end{table}
 
-Finally, two dataset-coverage items remain and are likewise flagged as
-[TODO: run experiment]: sensitivity to the ensemble size $M$, to quantify how
-gracefully each method degrades as fewer chains are sampled; and completing the
-Llama-2-13B runs on the remaining datasets and sampling baselines (the ``--''
-entries in Table~\ref{tab:main-results}).
+\subsubsection{Graph Construction Thresholds}
+\label{sec:exp:ablation:thresh}
+
+The reasoning graph depends on two cosine-similarity thresholds: the clustering
+threshold $\theta_c$, above which two steps merge into a single node, and the
+semantic-edge threshold $\theta_e$, above which steps from different chains are
+joined by a soft edge. $\theta_c$ governs how aggressively the graph collapses
+equivalent reasoning---set too low it over-merges distinct states, too high it
+fragments the graph---while $\theta_e$ controls how densely the chains are
+cross-connected. Table~\ref{tab:abla-simthr} sweeps $\theta_c$ for both vBD and
+gBD-v2, and Table~\ref{tab:abla-crossthr} sweeps $\theta_e$ for gBD-v2 (vBD uses
+no soft edges).
+
+\begin{table}[t]
+  \centering
+  \footnotesize
+  \begin{tabular}{c cc}
+    \toprule
+    $\theta_c$ & \textbf{vBD} & \textbf{gBD-v2} \\
+    \midrule
+    0.85 & -- & -- \\
+    0.88 & -- & -- \\
+    0.90 & -- & -- \\
+    0.92 (default) & -- & -- \\
+    0.95 & -- & -- \\
+    \bottomrule
+  \end{tabular}
+  \caption{Clustering threshold $\theta_c$ on SVAMP, Llama-3.1-8B, AUROC
+  ($\times 100$). [TODO: run experiment].}
+  \label{tab:abla-simthr}
+\end{table}
+
+\begin{table}[t]
+  \centering
+  \footnotesize
+  \begin{tabular}{c c}
+    \toprule
+    $\theta_e$ & \textbf{gBD-v2} \\
+    \midrule
+    0.60 & -- \\
+    0.65 & -- \\
+    0.70 (default) & -- \\
+    0.75 & -- \\
+    0.80 & -- \\
+    \bottomrule
+  \end{tabular}
+  \caption{Semantic-edge threshold $\theta_e$ on SVAMP, Llama-3.1-8B, AUROC
+  ($\times 100$). [TODO: run experiment].}
+  \label{tab:abla-crossthr}
+\end{table}
+
+\subsubsection{Number of Monte-Carlo Trials}
+\label{sec:exp:ablation:trials}
+
+Both estimators approximate band depth by sampling---vBD over random vertex
+subsets, gBD over pairs of random walks---using $T$ trials per estimate. Larger
+$T$ reduces estimator variance at a cost linear in $T$.
+Table~\ref{tab:abla-trials} sweeps $T \in \{50, 100, 200, 400\}$ to verify that
+the estimates are converged at the default $T = 200$.
+
+\begin{table}[t]
+  \centering
+  \footnotesize
+  \begin{tabular}{c cc}
+    \toprule
+    $T$ & \textbf{vBD} & \textbf{gBD-v2} \\
+    \midrule
+    50  & -- & -- \\
+    100 & -- & -- \\
+    200 (default) & -- & -- \\
+    400 & -- & -- \\
+    \bottomrule
+  \end{tabular}
+  \caption{Number of Monte-Carlo trials $T$ on SVAMP, Llama-3.1-8B, AUROC
+  ($\times 100$). [TODO: run experiment].}
+  \label{tab:abla-trials}
+\end{table}
+
+Finally, two items remain and are likewise flagged as [TODO: run experiment]:
+sensitivity to the ensemble size $M \in \{5, 10, 20, 50\}$ (on SVAMP with
+Llama-3.1-8B), to quantify how gracefully each method degrades as fewer chains
+are sampled; and completing the Llama-2-13B runs on the remaining datasets and
+sampling baselines (the ``--'' entries in Table~\ref{tab:main-results}).
 
 % -----------------------------------------------------------------------
 \bibliographystyle{plainnat}
