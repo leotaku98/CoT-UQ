@@ -83,10 +83,24 @@ blind spot: they treat the reasoning chain---the very structure CoT was designed
 to produce---as a black box. Answer-level methods discard it entirely, and
 verbalized methods rely on the model's unreliable introspection over it.
 
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\linewidth]{resources/intro_motivation}
+  \caption{Answer-level versus reasoning-level uncertainty. A question is sampled
+  into several Chain-of-Thought responses that all reach the same final answer
+  (``Jane Austen''), so answer-level agreement reports full---and
+  overconfident---certainty ($\mathrm{Conf(ans)}=100\%$). Yet the three chains
+  reason along visibly different paths, so the reasoning itself is far less
+  certain ($\mathrm{Conf(CoT)}=80\%$). Our band-depth methods score exactly this
+  reasoning diversity, which answer-level agreement discards.}
+  \label{fig:intro}
+\end{figure}
+
 This blind spot matters because the reasoning chain carries information that the
-final answer cannot. Two responses may converge on the same answer through
-entirely different reasoning paths---one sound, one a lucky coincidence of
-errors---yet answer-level consistency assigns them identical confidence.
+final answer cannot. As illustrated in Figure~\ref{fig:intro}, two responses may
+converge on the same answer through entirely different reasoning paths---one
+sound, one a lucky coincidence of errors---yet answer-level consistency assigns
+them identical confidence.
 Conversely, an ensemble whose chains disagree sharply at intermediate steps
 signals genuine model uncertainty even when the final answers happen to match.
 Recent work has begun to incorporate reasoning into UQ: CoT-UQ extracts
@@ -155,15 +169,13 @@ generated text. For a dataset
 $\{x_i\}_{i=1}^{N}$ with reference answers $\{y_i^\star\}_{i=1}^{N}$, an oracle
 correctness function $h(y_i; y_i^\star) \in \{0, 1\}$ indicates whether response
 $y_i$ is correct; this label is used only for offline evaluation and is
-unavailable at inference time. The goal of uncertainty quantification (UQ) is to
-design a confidence scorer
+unavailable at inference time. The goal of uncertainty quantification (UQ) is to design a confidence scorer
 \begin{equation}
-  \hat{s} : y_i \mapsto \hat{s}(y_i) \in [0, 1],
+  \hat{s}: y_i \mapsto \hat{s}(y_i)\in[0,1],
 \end{equation}
-that assigns higher scores to correct responses than to incorrect ones, so that
-thresholding $\hat{s}(y_i) < \tau$ yields a reliable error detector. Because
-$\hat{s}$ depends only on model outputs and never on $y_i^\star$, it serves as a
-practical proxy for the inaccessible oracle.
+that assigns higher scores to correct responses than to incorrect ones.
+Because $\hat{s}$ depends only on model outputs and never on $y_i^\star$, it
+serves as a practical proxy for the inaccessible oracle.
 
 \paragraph{Chain-of-Thought generation.}
 Under Chain-of-Thought (CoT) prompting~\citep{wei2022chain}, a response is not a
@@ -204,16 +216,6 @@ than a randomly chosen incorrect one; a score of $1.0$ is perfect ranking and
 $0.5$ corresponds to random guessing, with no dependence on a particular
 threshold $\tau$.
 
-\paragraph{Datasets and models.}
-We study two reasoning regimes. For \emph{mathematical reasoning} we use
-GSM8K~\citep{cobbe2021gsm8k}, SVAMP~\citep{patel2021svamp}, and
-ASDiv~\citep{miao2020asdiv}; for \emph{multi-hop question answering} we use
-HotpotQA~\citep{yang2018hotpotqa} and 2WikiMultihopQA~\citep{ho2020wikimultihop}.
-As backbones we use two open models of differing scale and family,
-Llama-3.1-8B~\citep{grattafiori2024llama3} and
-Llama-2-13B~\citep{touvron2023llama2}. Full dataset statistics and decoding
-hyperparameters are deferred to Section~\ref{sec:exp}.
-
 % -----------------------------------------------------------------------
 \section{Methodology}
 \label{sec:method}
@@ -242,6 +244,24 @@ reasoning chains: each chain plays the role of a curve, and its depth within the
 ensemble serves as a confidence signal---high ensemble depth indicates agreement
 and reliability, low depth indicates dispersion and uncertainty.
 
+\begin{figure*}[htbp]
+  \centering
+  \includegraphics[width=\textwidth]{resources/methods_overview}
+  \caption{Overview of the three band-depth estimators on a toy ensemble of CoT
+  chains (\textbf{Original}: raw sampled chains from input $Q$ to answers
+  $O_1, O_2$). \textbf{pBD} DTW-aligns the chains by step position and scores each
+  step by its centroid distance $\delta = 1 - \cos(e(s_k), \mu_k)$ to the aligned
+  centroid $\mu_k$; a chain's depth is its mean closeness to those centroids.
+  \textbf{vBD} builds the reasoning graph (vertices $A$--$F$) and shades each node
+  by its vertex band depth---how often it falls inside the geodesic hull of random
+  vertex pairs (dark = central, light = peripheral)---scoring a chain by the mean
+  depth of the nodes it visits. \textbf{gBD} returns to the path level, scoring a
+  chain by how centrally its whole trajectory runs through the graph relative to
+  sampled random walks (colored arrows): a path threading the dense core scores
+  deeper than one skirting the fringe.}
+  \label{fig:methods}
+\end{figure*}
+
 \subsection{pBD: Path Band Depth}
 \label{sec:method:pbd}
 
@@ -252,62 +272,64 @@ paces, we align them with Dynamic Time Warping (DTW) before comparison.
 
 For a chain $P^{(m)}$ and every other chain $P^{(r)}$ ($r \neq m$), let
 $\sigma_r$ be the DTW alignment mapping each step index $k$ of $P^{(m)}$ to its
-corresponding index in $P^{(r)}$. The path depth of $P^{(m)}$ is the mean cosine
-similarity between each of its step embeddings and the centroid of the aligned
-steps across the other chains,
+corresponding index in $P^{(r)}$. At each step index $k$ we form the
+\emph{aligned centroid} of the other chains' matched steps,
 \begin{equation}
-  s^{(m)} = \frac{1}{n_m} \sum_{k=1}^{n_m}
-  \cos\!\left( e\big(s_k^{(m)}\big),\;
-  \frac{1}{M-1} \sum_{r \neq m} e\big(s_{\sigma_r(k)}^{(r)}\big) \right),
+  \mu_k^{(m)} = \frac{1}{M-1} \sum_{r \neq m} e\big(s_{\sigma_r(k)}^{(r)}\big),
+\end{equation}
+and measure the \emph{centroid distance} $\delta_k^{(m)}$ of $s_k^{(m)}$ to that
+centroid (the quantity drawn in the pBD panel of Figure~\ref{fig:methods}),
+\begin{equation}
+  \delta_k^{(m)} = 1 - \cos\!\big( e(s_k^{(m)}),\, \mu_k^{(m)} \big) \in [0, 1],
+\end{equation}
+so that a small $\delta_k^{(m)}$ means $s_k^{(m)}$ sits close to the ensemble's
+consensus at position $k$. The path depth of $P^{(m)}$ is its mean closeness to
+the centroids,
+\begin{equation}
+  s^{(m)} = \frac{1}{n_m} \sum_{k=1}^{n_m} \big( 1 - \delta_k^{(m)} \big),
 \end{equation}
 and the ensemble-mean depth $\bar{s} = \frac{1}{M} \sum_{m=1}^{M} s^{(m)}$ is
 then combined with answer agreement to form the final confidence through the
 shared blend of Eq.~\eqref{eq:blend}.
 
-Despite capturing uncertainty in the CoT chain, pBD has its own weakness. In Table~\ref{tab:ensemble-example}, the four chains were produced for a
-single HotpotQA question and all reach the correct answer ``We Are the Ocean''
-through the same underlying logic---establish each band's member count, compare
-the two numbers, and conclude---yet they realize that logic very differently. The
-two member-count lookups appear in opposite orders (Chains~A and~C state ``We Are
-the Ocean'' first, Chains~B and~D state ``The Dream Academy'' first); the
-comparison is phrased in several equivalent ways (``$5 > 3$'', ``3 vs.\ 5'',
-``3 is fewer than 5''); and the chains range from three to six steps, some
-inserting filler such as ``consider the other band'' that carries no new
-information. Conceptually the chains are in near-perfect agreement, but pBD
-compares step embeddings position by position, so it matches ``We Are the Ocean
-has 5 members'' in one chain against ``The Dream Academy has 3 members'' in
-another and registers large spurious diversity, deflating the depth exactly where
-confidence should be highest. pBD is therefore \emph{order-sensitive}, even though
-agreement among reasoning chains is inherently order-invariant. Computationally,
-the differing lengths force pBD to establish a common index set for every pair,
-which DTW obtains by solving a dynamic program at a cost of $O(n^2 d)$ per pair
-and $O(M^2 n^2 d)$ for the full ensemble. Both problems stem from insisting on a
-position-wise, sequential view of the chains.
+Despite capturing uncertainty in the CoT chain, pBD has its own weakness. In
+Table~\ref{tab:ensemble-example}, two chains were produced for a single HotpotQA
+question and both reach the correct answer ``We Are the Ocean'' through the same
+four-step logic---look up each band's member count, compare the two numbers, and
+conclude. The chains are identical in length and wording and differ \emph{only}
+in the \emph{order} of the two member-count lookups: Chain~A states ``We Are the
+Ocean'' first, Chain~B states ``The Dream Academy'' first. Conceptually the two
+chains are the same, but pBD compares step embeddings position by position, so it
+aligns ``We Are the Ocean has 5 members'' (Chain~A, step~1) against ``The Dream
+Academy has 3 members'' (Chain~B, step~1) and registers large spurious diversity,
+deflating the depth exactly where confidence should be highest. pBD is therefore
+\emph{order-sensitive}, even though agreement among reasoning chains is inherently
+order-invariant. Computationally, aligning every pair of chains with DTW costs
+$O(n^2 d)$ per pair and $O(M^2 n^2 d)$ for the full ensemble. Both problems stem
+from insisting on a position-wise, sequential view of the chains.
 
 \begin{table}[htbp]
   \centering
   \footnotesize
-  \setlength{\tabcolsep}{4pt}
-  \begin{tabular}{c|llll}
+  \setlength{\tabcolsep}{6pt}
+  \begin{tabular}{c|ll}
     \toprule
-    Step & \textbf{Chain A} & \textbf{Chain B} & \textbf{Chain C} & \textbf{Chain D} \\
+    Step & \textbf{Chain A} & \textbf{Chain B} \\
     \midrule
-    1 & WATO is a 5-piece & TDA: a 3-member group & WATO numbers 5 musicians & TDA: 3 members \\
-    2 & TDA has 3 members & WATO has 5 members    & consider the other band  & WATO: 5, more than 3 \\
-    3 & $5 > 3$           & 3 vs.\ 5              & TDA is a trio (3)        & answer: WATO \\
-    4 & WATO is larger    & 5 is larger           & 5 and 3 side by side     & --- \\
-    5 & ---               & WATO has more         & 3 is fewer than 5        & --- \\
-    6 & ---               & ---                   & WATO wins on size        & --- \\
+    1 & WATO has 5 members & TDA has 3 members \\
+    2 & TDA has 3 members  & WATO has 5 members \\
+    3 & $5 > 3$            & $5 > 3$ \\
+    4 & WATO is larger     & WATO is larger \\
     \bottomrule
   \end{tabular}
-  \caption{Four Chain-of-Thought chains for the HotpotQA question
+  \caption{Two Chain-of-Thought chains for the HotpotQA question
   \emph{``Which band has more members, We Are the Ocean or The Dream Academy?''}
-  (WATO = We Are the Ocean, TDA = The Dream Academy). All four reach the correct
-  answer through the same logic, but differ in the order of the two member-count
-  lookups, in the wording of the comparison, and in length (three to six steps).
-  The chains agree in meaning, yet pBD's position-wise comparison misaligns
-  equivalent steps (e.g.\ ``WATO: 5'' against ``TDA: 3'') and counts them as
-  diverse, motivating the order-invariant graph of Section~\ref{sec:method:graph}.}
+  (WATO = We Are the Ocean, TDA = The Dream Academy). Both chains have the same
+  length and the same reasoning; they differ \emph{only} in the order of the two
+  member-count lookups (steps 1--2). pBD's position-wise comparison nonetheless
+  aligns ``WATO has 5 members'' (Chain~A, step~1) against ``TDA has 3 members''
+  (Chain~B, step~1) and counts the two chains as diverse, motivating the
+  order-invariant graph of Section~\ref{sec:method:graph}.}
   \label{tab:ensemble-example}
 \end{table}
 
@@ -318,10 +340,9 @@ To mitigate both the order-sensitivity and the alignment cost of pBD, we abandon
 position-wise comparison and instead collapse the ensemble into a single
 \emph{reasoning graph} $G = (V, E)$, which is used later in vBD and gBD. By merging
 semantically equivalent steps into shared nodes regardless of where they appear
-in a chain, the graph maps the reordered lookups, the differently-worded
-comparisons, and the varied-length chains of Table~\ref{tab:ensemble-example}
-onto one shared structure: equivalent reasoning is no longer counted as diversity
-and no pairwise alignment is needed. Starting from the embedded steps of all $M$
+in a chain, the graph maps the reordered lookups of
+Table~\ref{tab:ensemble-example} onto one shared structure: equivalent reasoning
+is no longer counted as diversity and no pairwise alignment is needed. Starting from the embedded steps of all $M$
 chains:
 \begin{itemize}
   \item \textbf{Nodes.} Steps whose pairwise cosine similarity exceeds a high
@@ -340,9 +361,10 @@ of the ensemble is encoded in the topology of $G$.
 \label{sec:method:vbd}
 
 vBD measures the \emph{centrality of each individual vertex} in the reasoning
-graph, and then scores a chain by how central the nodes it visits are. A vertex
-is central if it lies ``between'' many other reasoning states---a node that the
-bulk of the graph encloses---and peripheral if it sits at the fringe. Because
+graph (the vBD panel of Figure~\ref{fig:methods}), and then scores a chain by how
+central the nodes it visits are. A vertex is central if it lies ``between'' many other reasoning
+states---a node that the bulk of the graph encloses---and peripheral if it sits
+at the fringe. Because
 only the \emph{set} of visited nodes enters the score, vBD is fully
 order-invariant. Concretely, we sample vertex pairs uniformly from the vertex set $V$. For a
 vertex $v$, its vertex band depth is the probability that $v$ lies inside the
@@ -388,36 +410,15 @@ never considers any reasoning beyond those $M$. Our graph, by contrast, clusters
 semantically equivalent steps into shared nodes and links steps across chains
 with edges, so it encodes reasoning transitions that no \emph{single} sampled
 chain exhibits. A random walk on $G$ can traverse these edges to synthesize
-entirely new chains. Figure~\ref{fig:reasoning-graph} shows the graph built from
-the four chains of Table~\ref{tab:ensemble-example}, with two sampled random walks
-highlighted: walk~A stitches Chain~C's framing step onto Chain~B's TDA-first
-ordering, while walk~B takes a shorter route straight from the member counts to
-the conclusion. Neither appears in any single sampled chain. gBD draws such walks
-as its reference paths, so it measures a chain's depth against the full reasoning
-space
+entirely new chains. As the gBD panel of Figure~\ref{fig:methods} illustrates,
+gBD scores a chain by how centrally its whole \emph{trajectory} runs through the
+graph: a path that threads the dense core ($Q \to A \to B \to C \to D \to O_1$)
+attains higher depth than a peripheral path that skirts the fringe
+($Q \to E \to F \to O_1$), even though both are valid input-to-output routes. gBD draws random walks as its
+reference paths, so it measures a chain's depth against the full reasoning space
 the graph defines rather than against only the $M$ observed chains. This yields a
 markedly richer depth estimate that remains robust when the ensemble is small,
 because the graph interpolates reasoning paths the model did not happen to sample.
-
-\begin{figure}[htbp]
-  \centering
-  % TODO: replace placeholder with the generated figure:
-  %   \includegraphics[width=\linewidth]{resources/reasoning_graph}
-  %   (run resources/plot_reasoning_graph.py to produce reasoning_graph.pdf)
-  \fbox{\begin{minipage}[c][3.5cm][c]{0.98\linewidth}\centering\itshape
-  [Placeholder] reasoning-graph figure --- two sampled walks on $G$ built from the
-  four chains of Table~\ref{tab:ensemble-example}.\end{minipage}}
-  \caption{Reasoning graph induced by the four chains of
-  Table~\ref{tab:ensemble-example} (WATO = We Are the Ocean, TDA = The Dream
-  Academy). Gray arrows are reasoning-graph edges aggregated across chains; the
-  red and blue paths are two random walks drawn by gBD. Walk~A (red),
-  ``consider the other band $\to$ TDA:3 $\to$ WATO:5 $\to$ compare $\to$ WATO
-  more,'' recombines Chain~C's framing with Chain~B's ordering; walk~B (blue),
-  ``TDA:3 $\to$ compare $\to$ WATO more,'' is a shorter route. Neither occurs in
-  any single sampled chain. gBD scores chains against such synthesized walks,
-  probing the full reasoning space rather than only the observed chains.}
-  \label{fig:reasoning-graph}
-\end{figure}
 
 For each real chain $P^{(m)}$ we draw $T$ pairs of random walks
 $(W_a^{(t)}, W_b^{(t)})$ on $G$ and measure the fraction of $P^{(m)}$'s vertices

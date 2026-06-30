@@ -28,7 +28,7 @@ def parse_arguments():
     )
     parser.add_argument(
         "--model_engine", default='llama2-7b', help="model engine",
-        choices=["llama3-1_8B", "llama2-13b"]
+        choices=["llama3-1_8B", "llama2-13b", "qwen2.5-3b", "qwen3-8B"]
     )
     parser.add_argument(
         "--uq_engine", default='self-probing-keystep', help="uncertainty quantification engine",

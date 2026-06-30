@@ -8,7 +8,9 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 
 HF_NAMES = {
     'llama3-1_8B': 'meta-llama/Llama-3.1-8B',
-    'llama2-13b': 'meta-llama/Llama-2-13b-chat-hf'
+    'llama2-13b': 'meta-llama/Llama-2-13b-chat-hf',
+    'qwen2.5-3b': 'Qwen/Qwen2.5-3B-Instruct',
+    'qwen3-8B': 'Qwen/Qwen3-8B',
 }
 
 def model_init(args):
@@ -26,6 +28,16 @@ def model_init(args):
                 model_name,
                 torch_dtype=torch.bfloat16,
             ).to(device)
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+    elif "qwen" in args.model_engine:
+        if args.model_engine == 'qwen3-8B':
+            model = AutoModelForCausalLM.from_pretrained(
+                model_name,
+                torch_dtype=torch.bfloat16,
+                device_map="auto",
+            )
+        else:
+            model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.bfloat16).to(device)
         tokenizer = AutoTokenizer.from_pretrained(model_name)
     elif "mistral" in args.model_engine:
         model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.bfloat16).to(device)

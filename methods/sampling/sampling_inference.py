@@ -88,7 +88,7 @@ def sampling_inference():
 if __name__ == "__main__":
     print_exp(args)
 
-    if args.model_engine in ["llama3-1_8B", "llama2-13b"]:
+    if args.model_engine in ["llama3-1_8B", "llama2-13b", "qwen2.5-3b", "qwen3-8B"]:
         sampling_inference()
     else:
         raise ValueError(f"Invalid model engine: {args.model_engine}")

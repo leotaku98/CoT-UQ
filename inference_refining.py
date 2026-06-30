@@ -33,9 +33,7 @@ def _load_processed_ids(output_path: str) -> set:
 
 
 def llama_inference_refining():
-    output_dir = os.path.dirname(args.output_path)
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
+    os.makedirs(args.output_path, exist_ok=True)
 
     log = setup_log(args)
 
@@ -192,7 +190,7 @@ def llama_inference_refining():
 if __name__ == '__main__':
     print_exp(args)
 
-    if args.model_engine in ["llama3-1_8B", "llama2-13b"]:
+    if args.model_engine in ["llama3-1_8B", "llama2-13b", "qwen2.5-3b", "qwen3-8B"]:
         llama_inference_refining()
     else:
         raise ValueError(f"Invalid model engine: {args.model_engine}")

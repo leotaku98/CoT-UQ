@@ -41,7 +41,8 @@
       "Bash(/home/haowhuan/Data/miniconda3/envs/cotuq/bin/python3 methods/bd_ensemble/gBD_v2.py --dataset gsm8k --model_engine llama2-13b)",
       "WebSearch",
       "WebFetch(domain:journals.ametsoc.org)",
-      "WebFetch(domain:api.crossref.org)"
+      "WebFetch(domain:api.crossref.org)",
+      "Bash(env)"
     ],
     "additionalDirectories": [
       "/data/haowhuan/PycharmProjects/CoT-UQ/tmp"
