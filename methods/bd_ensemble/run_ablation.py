@@ -30,16 +30,28 @@ import subprocess
 import sys
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
+PBD = os.path.join("methods", "bd_ensemble", "pBD.py")
 VBD = os.path.join("methods", "bd_ensemble", "vBD.py")
-GBD = os.path.join("methods", "bd_ensemble", "gBD_v2.py")
+GBD1 = os.path.join("methods", "bd_ensemble", "gBD_v1.py")
+GBD2 = os.path.join("methods", "bd_ensemble", "gBD_v2.py")
 
 # (ablation name, scripts, CLI flag, swept values)
+# Each hyperparameter is run only for the methods it actually affects:
+#   - subset_size J : vBD (vertex pairs), gBD-v2 (reference walks). gBD-v1 uses a
+#                     hardcoded path pair; pBD has no graph.
+#   - walk_length L : gBD-v2 only (gBD-v1 uses anchored simple paths, no length).
+#   - theta_c       : every graph method (vBD, gBD-v1, gBD-v2).
+#   - theta_e       : gBD-v1, gBD-v2 (vBD has no soft cross edges).
+#   - n_trials T    : every Monte-Carlo method (vBD, gBD-v1, gBD-v2).
+#   - alpha         : ALL four methods (the blend weight is shared by everyone).
 SWEEPS = [
-    ("subset_size",     [VBD, GBD], "--subset_size",     ["2", "3", "4", "5"]),
-    ("walk_length",     [GBD],      "--walk_length",     ["3", "5", "7", "10", "adaptive"]),
-    ("sim_threshold",   [VBD, GBD], "--sim_threshold",   ["0.85", "0.88", "0.90", "0.92", "0.95"]),
-    ("cross_threshold", [GBD],      "--cross_threshold", ["0.60", "0.65", "0.70", "0.75", "0.80"]),
-    ("n_trials",        [VBD, GBD], "--n_trials",        ["50", "100", "200", "400"]),
+    ("subset_size",     [VBD, GBD2],            "--subset_size",     ["2", "3", "5", "8", "12", "16", "20"]),
+    ("walk_length",     [GBD2],                 "--walk_length",     ["2", "3", "5", "8", "12", "16", "20", "adaptive"]),
+    ("sim_threshold",   [VBD, GBD1, GBD2],      "--sim_threshold",   ["0.1", "0.2", "0.3", "0.4", "0.5", "0.6", "0.7", "0.8", "0.9"]),
+    ("cross_threshold", [GBD1, GBD2],           "--cross_threshold", ["0.1", "0.2", "0.3", "0.4", "0.5", "0.6", "0.7", "0.8", "0.9"]),
+    ("n_trials",        [VBD, GBD1, GBD2],      "--n_trials",        ["10", "50", "100", "200", "400", "800"]),
+    ("alpha",           [PBD, VBD, GBD1, GBD2], "--alpha",           ["0.0", "0.1", "0.2", "0.3", "0.4", "0.5",
+                                                                      "0.6", "0.7", "0.8", "0.9", "1.0"]),
 ]
 
 

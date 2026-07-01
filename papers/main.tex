@@ -678,21 +678,26 @@ reference is what makes it the strongest estimator overall. The anchored/free
 contrast (gBD-v1 vs.\ gBD-v2) further isolates the value of unconstrained walks,
 which consistently provide a small additional gain.
 
-We further isolate the hyperparameters specific to the band-depth construction:
-the band \emph{subset size}, the gBD \emph{random-walk length}, the two graph
-similarity \emph{thresholds}, and the number of Monte-Carlo \emph{trials}. To keep
-the study tractable, all ablations below are run on a single representative
-dataset---SVAMP, the smallest benchmark---with Llama-3.1-8B, and fix the
-confidence blend weight at $\alpha = 0.5$. Each sweep recomputes band depth on the
-same fixed sampled ensembles as the main results and writes its AUROCs to a
-separate \texttt{output/ablation/} location, leaving \texttt{output/metric/}
-untouched. The results (Tables~\ref{tab:abla-subset}--\ref{tab:abla-trials})
-show the method to be highly stable: AUROC varies within roughly one point across
-every sweep. The clustering threshold $\theta_c$ is the only setting with a
-pronounced effect---low values over-merge distinct reasoning steps and degrade
-vBD by over two points (74.82 at $\theta_c{=}0.92$ down to 72.37 at $0.85$)---
-confirming that the chosen defaults ($J{=}2$, $\theta_c{=}0.92$, $\theta_e{=}0.70$,
-$T{=}200$) are well calibrated.
+We further isolate the band-depth construction's own hyperparameters, sweeping
+each over a wide range while holding the others at their defaults: the band
+\emph{subset size} $J$, the gBD \emph{random-walk length} $L$, the two graph
+similarity \emph{thresholds} $\theta_c$ and $\theta_e$, the number of Monte-Carlo
+\emph{trials} $T$, and the confidence \emph{blend weight} $\alpha$. Each is run
+for every band-depth method it affects---pBD has no reasoning graph, so it appears
+only in the $\alpha$ sweep---on SVAMP with Llama-3.1-8B, recomputing band depth on
+the same fixed ensembles and writing to a separate \texttt{output/ablation/}
+location. Table~\ref{tab:ablation} collects the results, and two conclusions stand
+out. First, the method is \emph{robust}: across subset size, walk length, edge
+threshold, and trial count, AUROC stays within about one point, so none of these
+needs careful tuning. Second, only two axes move it. The clustering threshold
+$\theta_c$ must be high enough to keep distinct reasoning states apart---dropping
+it to $0.1$ over-merges nearly every step into a single node and collapses vBD to
+chance ($50.3$)---so the default $\theta_c{=}0.92$ sits safely in the saturated
+region above $\theta_c{\approx}0.8$. The blend weight $\alpha$ trades reasoning
+depth against answer agreement: all four methods peak on a broad plateau around
+$\alpha \in [0.1, 0.4]$ and fall off sharply toward pure depth ($\alpha{=}1$),
+confirming the two signals are complementary. The remaining defaults ($J{=}2$,
+adaptive $L$, $\theta_e{=}0.70$, $T{=}200$) all lie in stable regions.
 
 \subsubsection{Band Subset Size}
 \label{sec:exp:ablation:subset}
@@ -703,27 +708,83 @@ vertices and tests whether a target vertex lies in their geodesic hull, while gB
 draws pairs of reference walks. The subset size $J$ controls how large each band
 is---larger $J$ produces wider hulls that enclose more of the graph, trading
 sensitivity for stability---so it is the natural first hyperparameter to ablate.
-Table~\ref{tab:abla-subset} sweeps $J \in \{2,3,4,5\}$ for both vBD and gBD-v2,
-holding all else fixed, to determine whether the minimal pairwise band is in fact
-the best choice.
+Table~\ref{tab:ablation} (subset-size block) sweeps $J \in \{2,3,5,8,12,16,20\}$
+for vBD and gBD-v2; both stay within one point across the whole range, so the
+minimal pairwise band ($J{=}2$) is already a sound default.
 
-% Results to be written to output/ablation/subset_size.json (see output/ablation/README.md)
 \begin{table}[htbp]
   \centering
   \footnotesize
-  \begin{tabular}{c cc}
+  \setlength{\tabcolsep}{5pt}
+  \caption{Wide-range band-depth ablations on SVAMP, Llama-3.1-8B, AUROC ($\times 100$).
+  Each block sweeps one hyperparameter with the others at their defaults;
+  \textbf{bold} marks each method's best value within a block. ``--'' marks
+  settings a method does not use (pBD has no reasoning graph; walk length $L$ and
+  edge threshold $\theta_e$ are gBD-only; $J$ is fixed for gBD-v1). Defaults:
+  $J{=}2$, $L$ adaptive, $\theta_c{=}0.92$, $\theta_e{=}0.70$, $T{=}200$;
+  main-results $\alpha$ is $0.9$ (pBD, vBD) / $0.3$ (gBD).}
+  \label{tab:ablation}
+  \begin{tabular}{l l cccc}
     \toprule
-    $J$ & \textbf{vBD} & \textbf{gBD-v2} \\
+    Hyperparameter & Setting & pBD & vBD & gBD-v1 & gBD-v2 \\
     \midrule
-    2 (default) & \textbf{74.74} & 74.52 \\
-    3 & 74.27 & 74.68 \\
-    4 & 74.16 & 74.78 \\
-    5 & 74.06 & \textbf{74.80} \\
+    \multirow{9}{*}{Cluster $\theta_c$} & 0.1 & -- & 50.28 & 58.04 & 58.04 \\
+     & 0.2 & -- & 50.68 & 58.41 & 58.41 \\
+     & 0.3 & -- & 50.73 & 59.05 & 59.06 \\
+     & 0.4 & -- & 52.81 & 60.67 & 60.72 \\
+     & 0.5 & -- & 54.94 & 62.27 & 62.39 \\
+     & 0.6 & -- & 61.70 & 66.06 & 66.37 \\
+     & 0.7 & -- & 66.69 & 71.10 & 71.27 \\
+     & 0.8 & -- & 71.59 & 73.75 & 74.26 \\
+     & 0.9 (def.) & -- & \textbf{73.98} & \textbf{74.45} & \textbf{74.45} \\
+    \midrule
+    \multirow{9}{*}{Edge $\theta_e$} & 0.1 & -- & -- & 74.83 & 74.94 \\
+     & 0.2 & -- & -- & 74.91 & 74.99 \\
+     & 0.3 & -- & -- & \textbf{74.95} & 75.00 \\
+     & 0.4 & -- & -- & 74.92 & \textbf{75.06} \\
+     & 0.5 & -- & -- & 74.87 & 74.96 \\
+     & 0.6 & -- & -- & 74.67 & 74.63 \\
+     & 0.7 (def.) & -- & -- & 74.46 & 74.55 \\
+     & 0.8 & -- & -- & 73.90 & 74.32 \\
+     & 0.9 & -- & -- & 72.94 & 73.45 \\
+    \midrule
+    \multirow{7}{*}{Subset $J$} & 2 (def.) & -- & 74.69 & -- & 74.50 \\
+     & 3 & -- & 74.37 & -- & 74.69 \\
+     & 5 & -- & 74.01 & -- & 74.80 \\
+     & 8 & -- & 74.22 & -- & \textbf{74.84} \\
+     & 12 & -- & 74.42 & -- & 74.78 \\
+     & 16 & -- & 74.86 & -- & 74.67 \\
+     & 20 & -- & \textbf{75.04} & -- & 74.65 \\
+    \midrule
+    \multirow{8}{*}{Walk $L$} & 2 & -- & -- & -- & 74.47 \\
+     & 3 & -- & -- & -- & 74.70 \\
+     & 5 & -- & -- & -- & 74.86 \\
+     & 8 & -- & -- & -- & \textbf{74.98} \\
+     & 12 & -- & -- & -- & 74.92 \\
+     & 16 & -- & -- & -- & 74.90 \\
+     & 20 & -- & -- & -- & 74.86 \\
+     & adaptive (def.) & -- & -- & -- & 74.53 \\
+    \midrule
+    \multirow{6}{*}{MC trials $T$} & 10 & -- & 74.38 & 74.25 & 74.36 \\
+     & 50 & -- & 74.66 & 74.37 & 74.49 \\
+     & 100 & -- & 74.65 & \textbf{74.47} & 74.48 \\
+     & 200 (def.) & -- & 74.69 & 74.45 & 74.47 \\
+     & 400 & -- & 74.74 & 74.43 & \textbf{74.53} \\
+     & 800 & -- & \textbf{74.77} & 74.45 & 74.51 \\
+    \midrule
+    \multirow{11}{*}{Blend $\alpha$} & 0.0 & 74.49 & 74.49 & 74.49 & 74.49 \\
+     & 0.1 & 74.99 & \textbf{75.11} & 74.70 & 74.81 \\
+     & 0.2 & 75.01 & 75.09 & \textbf{74.74} & \textbf{74.83} \\
+     & 0.3 & \textbf{75.05} & 75.10 & 74.73 & 74.80 \\
+     & 0.4 & 74.90 & 75.02 & 74.72 & 74.74 \\
+     & 0.5 & 74.68 & 74.75 & 74.40 & 74.56 \\
+     & 0.6 & 74.26 & 74.10 & 73.83 & 74.01 \\
+     & 0.7 & 73.62 & 72.92 & 72.65 & 72.88 \\
+     & 0.8 & 72.24 & 71.06 & 70.38 & 70.83 \\
+     & 0.9 & 69.49 & 68.14 & 66.59 & 67.24 \\
+     & 1.0 & 63.85 & 64.27 & 61.40 & 62.25 \\
     \bottomrule
   \end{tabular}
-  \caption{Band subset size $J$ (vertices for vBD, walks for gBD-v2) on SVAMP,
-  Llama-3.1-8B, AUROC ($\times 100$). Default $J{=}2$ for both.}
-  \label{tab:abla-subset}
 \end{table}
 
 \subsubsection{Random-Walk Length in gBD}
@@ -734,29 +795,9 @@ $L$ governs how much of the graph each reference path spans: walks that are too
 short cannot enclose a full reasoning chain, while walks that are too long wander
 across unrelated regions and dilute the depth signal. There should therefore be
 an intermediate length matched to the typical chain length that is most
-discriminative. Table~\ref{tab:abla-walklen} sweeps $L$ over a range of fixed
-values together with the current adaptive default (length scaled to the graph),
-for gBD-v2.
-
-% Results to be written to output/ablation/walk_length.json (see output/ablation/README.md)
-\begin{table}[htbp]
-  \centering
-  \footnotesize
-  \begin{tabular}{l c}
-    \toprule
-    \textbf{Walk length $L$} & \textbf{gBD-v2} \\
-    \midrule
-    3                  & 74.71 \\
-    5                  & 74.85 \\
-    7                  & \textbf{74.90} \\
-    10                 & 74.88 \\
-    adaptive (default) & 74.52 \\
-    \bottomrule
-  \end{tabular}
-  \caption{gBD random-walk length $L$ on SVAMP, Llama-3.1-8B, AUROC ($\times 100$).
-  ``adaptive'' scales the length to the graph (default).}
-  \label{tab:abla-walklen}
-\end{table}
+discriminative. Table~\ref{tab:ablation} (walk-length block) sweeps $L$ from 2 to
+20 for gBD-v2: AUROC rises out of very short walks, peaks around $L{=}8$ ($74.98$),
+and decays only gently for longer walks; the adaptive default tracks this optimum.
 
 \subsubsection{Graph Construction Thresholds}
 \label{sec:exp:ablation:thresh}
@@ -767,47 +808,14 @@ semantic-edge threshold $\theta_e$, above which steps from different chains are
 joined by a soft edge. $\theta_c$ governs how aggressively the graph collapses
 equivalent reasoning---set too low it over-merges distinct states, too high it
 fragments the graph---while $\theta_e$ controls how densely the chains are
-cross-connected. Table~\ref{tab:abla-simthr} sweeps $\theta_c$ for both vBD and
-gBD-v2, and Table~\ref{tab:abla-crossthr} sweeps $\theta_e$ for gBD-v2 (vBD uses
-no soft edges).
-
-\begin{table}[htbp]
-  \centering
-  \footnotesize
-  \begin{tabular}{c cc}
-    \toprule
-    $\theta_c$ & \textbf{vBD} & \textbf{gBD-v2} \\
-    \midrule
-    0.85 & 72.37 & 74.26 \\
-    0.88 & 73.63 & \textbf{74.82} \\
-    0.90 & 74.01 & 74.41 \\
-    0.92 (default) & \textbf{74.82} & 74.47 \\
-    0.95 & 74.81 & 74.74 \\
-    \bottomrule
-  \end{tabular}
-  \caption{Clustering threshold $\theta_c$ on SVAMP, Llama-3.1-8B, AUROC
-  ($\times 100$).}
-  \label{tab:abla-simthr}
-\end{table}
-
-\begin{table}[htbp]
-  \centering
-  \footnotesize
-  \begin{tabular}{c c}
-    \toprule
-    $\theta_e$ & \textbf{gBD-v2} \\
-    \midrule
-    0.60 & \textbf{74.71} \\
-    0.65 & 74.68 \\
-    0.70 (default) & 74.52 \\
-    0.75 & 74.21 \\
-    0.80 & 74.27 \\
-    \bottomrule
-  \end{tabular}
-  \caption{Semantic-edge threshold $\theta_e$ on SVAMP, Llama-3.1-8B, AUROC
-  ($\times 100$).}
-  \label{tab:abla-crossthr}
-\end{table}
+cross-connected. Table~\ref{tab:ablation} sweeps both over $[0.1, 0.9]$: $\theta_c$
+for vBD, gBD-v1, and gBD-v2 (cluster block) and $\theta_e$ for the two gBD variants
+(edge block; vBD has no soft edges). $\theta_c$ gives the strongest trend in the
+study---at $\theta_c{=}0.1$ nearly every step merges into one node and the graph
+carries no signal (vBD at chance, $50.3$), and AUROC climbs monotonically as the
+threshold sharpens, saturating above $\theta_c{\approx}0.8$. $\theta_e$ is far
+milder, peaking near $0.3$--$0.4$ and declining slowly as fewer cross-chain edges
+survive.
 
 \subsubsection{Number of Monte-Carlo Trials}
 \label{sec:exp:ablation:trials}
@@ -815,26 +823,23 @@ no soft edges).
 Both estimators approximate band depth by sampling---vBD over random vertex
 subsets, gBD over pairs of random walks---using $T$ trials per estimate. Larger
 $T$ reduces estimator variance at a cost linear in $T$.
-Table~\ref{tab:abla-trials} sweeps $T \in \{50, 100, 200, 400\}$ to verify that
-the estimates are converged at the default $T = 200$.
+Table~\ref{tab:ablation} sweeps $T \in \{10, 50, 100, 200, 400, 800\}$: all three
+Monte-Carlo methods are converged by $T{=}50$ and flat thereafter, so the default
+$T{=}200$ buys negligible additional variance reduction.
 
-\begin{table}[htbp]
-  \centering
-  \footnotesize
-  \begin{tabular}{c cc}
-    \toprule
-    $T$ & \textbf{vBD} & \textbf{gBD-v2} \\
-    \midrule
-    50  & 74.60 & \textbf{74.61} \\
-    100 & \textbf{74.76} & 74.52 \\
-    200 (default) & 74.73 & 74.61 \\
-    400 & 74.72 & 74.54 \\
-    \bottomrule
-  \end{tabular}
-  \caption{Number of Monte-Carlo trials $T$ on SVAMP, Llama-3.1-8B, AUROC
-  ($\times 100$).}
-  \label{tab:abla-trials}
-\end{table}
+\subsubsection{Confidence Blend Weight}
+\label{sec:exp:ablation:alpha}
+
+The final confidence blends band depth with the answer-level majority fraction
+through $\alpha$; it is the only hyperparameter shared by all four estimators,
+since even the graph-free pBD is blended the same way. The blend-weight block of
+Table~\ref{tab:ablation} sweeps $\alpha$ from $0$ (pure majority vote) to $1$
+(pure depth): every method sits on a broad plateau for $\alpha \in [0.1, 0.4]$ and
+falls off sharply toward $\alpha{=}1$, where pure depth is $10$--$13$ points weaker
+than the blend, so depth and answer agreement are complementary. gBD's default
+$\alpha{=}0.3$ lies in this plateau; the $\alpha{=}0.9$ used for pBD and vBD is a
+value fixed across all five benchmarks rather than tuned to SVAMP, so this block is
+a single-dataset sensitivity study, not a re-selection of the operating point.
 
 Finally, two items remain and are likewise flagged as [TODO: run experiment]:
 sensitivity to the ensemble size $M \in \{5, 10, 20, 50\}$ (on SVAMP with

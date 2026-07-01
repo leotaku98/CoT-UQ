@@ -53,10 +53,41 @@ SIM_THRESHOLD: float = 0.92    # cosine sim >= this → merge into same vertex
 CROSS_SIM_THRESHOLD: Optional[float] = 0.70  # cosine sim in [CROSS, SIM) → add soft edge
 N_TRIALS: int = 200
 ALPHA: float = 0.5 if args.ablation else 0.3
+
+# Ablation overrides (opt-in; sentinel defaults leave the method defaults intact).
+# gBD-v1 uses anchored simple paths, so subset_size (J) and walk_length (L) do not
+# apply; its tunable axes are theta_c, theta_e, n_trials, and alpha.
+if args.sim_threshold > 0:
+    SIM_THRESHOLD = args.sim_threshold
+if args.cross_threshold >= 0:
+    CROSS_SIM_THRESHOLD = args.cross_threshold
+if args.n_trials:
+    N_TRIALS = args.n_trials
+if args.alpha >= 0:
+    ALPHA = args.alpha
 # ──────────────────────────────────────────────────────────────────────────────
 
 INPUT_VERTEX: int = -1
 OUTPUT_VERTEX: int = -2
+
+
+def _ablation_key() -> str:
+    """Swept-parameter value, used in ablation filenames and result keys."""
+    return {
+        "sim_threshold": str(SIM_THRESHOLD),
+        "cross_threshold": str(CROSS_SIM_THRESHOLD),
+        "n_trials": str(N_TRIALS),
+        "alpha": str(ALPHA),
+    }.get(args.ablation, "")
+
+
+def _conf_path(confidences_dir: str) -> str:
+    """Confidence output path; suffixed and relocated under ablation mode."""
+    if not args.ablation:
+        return os.path.join(confidences_dir, "ensemble_v1_gBD_v1.json")
+    abl_dir = os.path.join(confidences_dir, "ablation")
+    os.makedirs(abl_dir, exist_ok=True)
+    return os.path.join(abl_dir, f"ensemble_v1_gBD_v1_{args.ablation}_{_ablation_key()}.json")
 
 _STEP_RE = __import__("re").compile(r"^Step\s+\d+\s*:\s*", __import__("re").IGNORECASE)
 
@@ -329,7 +360,7 @@ def gBD_v1_uq() -> None:
     input_path = os.path.join(args.output_path, "ensemble_v1.json")
     confidences_dir = os.path.join(args.output_path, "confidences")
     os.makedirs(confidences_dir, exist_ok=True)
-    output_path = os.path.join(confidences_dir, "ensemble_v1_gBD_v1.json")
+    output_path = _conf_path(confidences_dir)
 
     if not os.path.exists(input_path):
         raise FileNotFoundError(f"Ensemble file not found: {input_path}")
@@ -417,7 +448,7 @@ def compute_auroc() -> None:
     from torchmetrics import AUROC
 
     labels_path = os.path.join(args.output_path, "output_v1_w_labels.json")
-    conf_path = os.path.join(args.output_path, "confidences", "ensemble_v1_gBD_v1.json")
+    conf_path = _conf_path(os.path.join(args.output_path, "confidences"))
 
     if not os.path.exists(labels_path):
         print(f"Labels file not found, skipping AUROC: {labels_path}")
@@ -449,14 +480,26 @@ def compute_auroc() -> None:
     auroc_value = auroc_fn(torch.tensor(confidences), torch.tensor(targets))
     print(f"AUROC (gBD, {args.dataset}): {auroc_value.item():.6f}  (n={len(confidences)})")
 
-    result_path = os.path.join("output", "metric", args.dataset + ".json")
-    os.makedirs(os.path.dirname(result_path), exist_ok=True)
-    results = {}
-    if os.path.exists(result_path):
-        with open(result_path, encoding="utf-8") as f:
-            results = json.load(f)
-
-    results.setdefault(args.model_engine, {})["gBD_v1"] = round(auroc_value.item(), 6)
+    if args.ablation:
+        # Ablation: write to output/ablation/<ablation>.json, leaving output/metric untouched.
+        result_path = os.path.join("output", "ablation", args.ablation + ".json")
+        param_key = _ablation_key()
+        os.makedirs(os.path.dirname(result_path), exist_ok=True)
+        results = {}
+        if os.path.exists(result_path):
+            with open(result_path, encoding="utf-8") as f:
+                results = json.load(f)
+        (results.setdefault(args.model_engine, {})
+                .setdefault("gBD_v1", {})
+                .setdefault(param_key, {}))[args.dataset] = round(auroc_value.item(), 6)
+    else:
+        result_path = os.path.join("output", "metric", args.dataset + ".json")
+        os.makedirs(os.path.dirname(result_path), exist_ok=True)
+        results = {}
+        if os.path.exists(result_path):
+            with open(result_path, encoding="utf-8") as f:
+                results = json.load(f)
+        results.setdefault(args.model_engine, {})["gBD_v1"] = round(auroc_value.item(), 6)
 
     with open(result_path, "w", encoding="utf-8") as f:
         json.dump(results, f, indent=2, ensure_ascii=False)
@@ -465,7 +508,7 @@ def compute_auroc() -> None:
 if __name__ == "__main__":
     print_exp(args)
 
-    if args.model_engine in ["llama3-1_8B", "llama2-13b"]:
+    if args.model_engine in ["llama3-1_8B", "llama2-13b", "qwen2.5-3b"]:
         gBD_v1_uq()
         compute_auroc()
     else:

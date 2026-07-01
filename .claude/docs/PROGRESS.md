@@ -1,6 +1,6 @@
 # Pipeline Progress
 
-Last updated: 2026-06-29 (venus6 — qwen3-8B pipeline launched: downloading + inference/ensemble queue)
+Last updated: 2026-07-01 (venus6 — qwen3-8B gsm8k inference done 760 ok/558 err, ensemble running 1123/1318)
 
 Legend: ✅ done · 🔄 running · ⏳ queued · — not applicable
 
@@ -29,7 +29,7 @@ Legend: ✅ done · 🔄 running · ⏳ queued · — not applicable
 | hotpotQA | ✅ 7853/8447 | ✅ all 5 | ✅ 8447 | ✅ 0.748 | ✅ 0.738 | ✅ 0.780 | ✅ | ✅ SP-baseline 0.674 |
 | 2WikimhQA | ✅ 1517/1548 | ✅ all 5 | ✅ 1548 | ✅ 0.626 | ✅ 0.736 | ✅ 0.732 | ✅ | ✅ SP-keystep 0.571 |
 
-**Status (2026-06-24):** ✅ All llama2-13b datasets inference+ensemble complete. hotpotQA BD/NLI/SE/AUROC still pending. venus25 `qwen_pipeline` running.
+**Status (2026-07-01):** ✅ llama2-13b fully complete across all 5 datasets — inference, ensemble, BD, and NLI+SE all done. NLI+SE filled this session for gsm8k (NC 54.47 / Ent 65.96 / SE 61.61) and svamp (NC 62.66 / Ent 63.93 / SE 56.10); hotpotQA/2WikimhQA/ASDiv NLI+SE already present.
 
 ---
 
@@ -41,9 +41,9 @@ Legend: ✅ done · 🔄 running · ⏳ queued · — not applicable
 | svamp | 1000 | ✅ 646 ok / 354 err | ✅ 1000 | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ |
 | ASDiv | 2249 | ✅ 1332 ok / 917 err | ✅ 2249 | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ |
 | 2WikimhQA | 1548 | ✅ 1082 ok / 466 err | ✅ 1548 | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ |
-| hotpotQA | 8447 | ✅ 2492 ok / 5955 err | 🔄 3493/8447 (~35s/q, ~48h) | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ |
+| hotpotQA | 8447 | ✅ 2492 ok / 5955 err | ✅ 8447 | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ |
 
-**Status (2026-06-24):** `qwen_pipeline`: gsm8k ✅ svamp ✅ ASDiv ✅ 2WikimhQA ✅ → hotpotQA infer 320/8447. ⚠️ High error rate across all datasets (30–67% fail "Final Answer:" format).
+**Status (2026-07-01):** ✅ qwen2.5-3b inference + ensemble complete on all 5 datasets (hotpotQA ensemble finished 8447/8447). UQ steps (labels, SP×5, BD, NLI+SE) still ⏳ pending for every dataset. ⚠️ High inference error rate persists (30–70% fail "Final Answer:" format), so usable per-question counts are well below N.
 
 ---
 
@@ -51,13 +51,13 @@ Legend: ✅ done · 🔄 running · ⏳ queued · — not applicable
 
 | Dataset | N | Infer | Ensemble | Labels | SP×5 | pBD | vBD | gBD | NLI+SE |
 |---|---|---|---|---|---|---|---|---|---|
-| gsm8k | 1318 | 🔄 | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ |
+| gsm8k | 1318 | ✅ 760 ok / 558 err | 🔄 1123/1318 | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ |
 | svamp | 1000 | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ |
 | ASDiv | 2249 | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ |
 | hotpotQA | 8447 | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ |
 | 2WikimhQA | 1548 | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ |
 
-**Status (2026-06-29):** venus6 `qwen3_pipeline` running — infer+ensemble queue, gsm8k first. First launch OOM'd on single GPU (too little free), so qwen3-8B now loads with `device_map="auto"` across both A5500s (~22 GB combined). ~48 s/q. Queue order: gsm8k → svamp → ASDiv → hotpotQA → 2WikimhQA. Raw few-shot prompts (no chat template) — Qwen3 thinking mode not triggered. ⚠️ Early sign of frequent "Final Answer:" format failures (like qwen2.5-3b); real ok/err split TBD after gsm8k. Script: `tmp/run_qwen3.sh`, log: `/data/haowhuan/cotuq_logs/qwen3_pipeline.log`.
+**Status (2026-07-01):** venus6 `qwen3_pipeline` running — infer+ensemble queue, gsm8k first. gsm8k inference **complete** (760 ok / 558 err = 1318 processed); ensemble now running at 1123/1318, but slow (~206 s/it, ~11h ETA remaining). Queue order: gsm8k → svamp → ASDiv → hotpotQA → 2WikimhQA. Raw few-shot prompts (no chat template) — Qwen3 thinking mode not triggered. ⚠️ Confirmed high "Final Answer:" format-failure rate (558/1318 ≈ 42% on gsm8k), matching qwen2.5-3b. Script: `tmp/run_qwen3.sh`, log: `/data/haowhuan/cotuq_logs/qwen3_pipeline.log`.
 
 ---
 
@@ -67,8 +67,7 @@ Only currently-running sessions are listed here. When a session finishes or dies
 
 | Session | Node | GPU | Job |
 |---|---|---|---|
-| `qwen_hotpot_ensemble` | venus25 | 0 | 🔄 hotpotQA ensemble 3493/8447 (~35s/q, ~48h left) |
-| `qwen3_pipeline` | venus6 | 0+1 | 🔄 qwen3-8B infer+ensemble queue, gsm8k first (~48s/q, device_map=auto) |
+| `qwen3_pipeline` | venus6 | 0+1 | 🔄 qwen3-8B ensemble gsm8k 1123/1318 (~206s/it, ~11h ETA), then svamp→ASDiv→hotpotQA→2WikimhQA |
 
 ---
 

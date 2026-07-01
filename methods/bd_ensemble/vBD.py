@@ -48,6 +48,8 @@ if args.sim_threshold > 0:
     SIM_THRESHOLD = args.sim_threshold
 if args.n_trials:
     N_TRIALS = args.n_trials
+if args.alpha >= 0:
+    ALPHA = args.alpha
 
 
 def _ablation_key() -> str:
@@ -56,6 +58,7 @@ def _ablation_key() -> str:
         "subset_size": str(J),
         "sim_threshold": str(SIM_THRESHOLD),
         "n_trials": str(N_TRIALS),
+        "alpha": str(ALPHA),
     }.get(args.ablation, "")
 
 
@@ -439,7 +442,7 @@ def compute_auroc() -> None:
 if __name__ == "__main__":
     print_exp(args)
 
-    if args.model_engine in ["llama3-1_8B", "llama2-13b"]:
+    if args.model_engine in ["llama3-1_8B", "llama2-13b", "qwen2.5-3b"]:
         vBD_uq()
         compute_auroc()
     else:

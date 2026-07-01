@@ -62,8 +62,12 @@ def parse_arguments():
         help="ablation: number of Monte-Carlo subset samples per estimate; 0 = method default"
     )
     parser.add_argument(
+        "--alpha", type=float, default=-1.0,
+        help="ablation: blend weight on band-depth vs majority vote; <0 = method default"
+    )
+    parser.add_argument(
         "--ablation", type=str, default="",
-        choices=["", "subset_size", "walk_length", "sim_threshold", "cross_threshold", "n_trials"],
+        choices=["", "subset_size", "walk_length", "sim_threshold", "cross_threshold", "n_trials", "alpha"],
         help="ablation mode; routes AUROC to output/ablation/<ablation>.json instead of output/metric"
     )
     parser.add_argument(

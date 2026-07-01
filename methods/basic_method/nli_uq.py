@@ -189,7 +189,7 @@ def nli_uq() -> None:
 if __name__ == "__main__":
     print_exp(args)
 
-    if args.model_engine in ["llama3-1_8B", "llama2-13b"]:
+    if args.model_engine in ["llama3-1_8B", "llama2-13b", "qwen2.5-3b"]:
         nli_uq()
         _compute_auroc("entailment-prob", "ensemble_v1_entailment.json")
         _compute_auroc("non-contradiction", "ensemble_v1_non_contradiction.json")
