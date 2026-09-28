@@ -122,7 +122,7 @@ def self_probing_uncertainty():
 
             try_time = 0
             while try_time < args.try_times:
-                response = predict(args, prompt, model, tokenizer)
+                response = predict(args, prompt, model, tokenizer, stop_on_confidence=True)
                 confidence = extract_probing_confidence(response)
 
                 if confidence is None:

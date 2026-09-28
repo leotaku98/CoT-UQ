@@ -42,10 +42,24 @@
       "WebSearch",
       "WebFetch(domain:journals.ametsoc.org)",
       "WebFetch(domain:api.crossref.org)",
-      "Bash(env)"
+      "Bash(env)",
+      "Bash(rm -f output/ablation/*.json)",
+      "Bash(/home/haowhuan/Data/miniconda3/envs/cotuq/bin/python methods/bd_ensemble/run_ablation.py --dry-run)",
+      "Bash(/home/haowhuan/Data/miniconda3/envs/cotuq/bin/python papers/figures/plot_bd_deepdive.py)",
+      "Bash(/home/haowhuan/Data/miniconda3/envs/cotuq/bin/python tmp/reconstruct_alpha.py --dataset svamp --validate)",
+      "Bash(rm -f aaai.aux aaai.bbl aaai.blg aaai.log)",
+      "Bash(pdflatex -interaction=nonstopmode -halt-on-error aaai.tex)",
+      "Bash(bibtex aaai *)",
+      "Read(//tmp/**)",
+      "Bash(ls /data/haowhuan/PycharmProjects/CoT-UQ/papers/aaai2027.sty 2>&1; echo \"---\"; rm -f aaai.aux aaai.bbl aaai.blg aaai.log && pdflatex -interaction=nonstopmode aaai.tex >/tmp/l1.log 2>&1; bibtex aaai >/tmp/lb.log 2>&1; pdflatex -interaction=nonstopmode aaai.tex >/tmp/l2.log 2>&1; pdflatex -interaction=nonstopmode aaai.tex >/tmp/l3.log 2>&1; echo \"=== undefined refs/citations ===\"; grep -i \"undefined\\\\|Citation.*undefined\" aaai.log | head; echo \"=== qwen in bbl ===\"; grep -i \"qwen\" aaai.bbl | head; echo \"=== bibtex warnings ===\"; grep -i \"warning\\\\|error\" /tmp/lb.log | head)",
+      "Bash(cd /data/haowhuan/PycharmProjects/CoT-UQ; rm -rf output/ablation output/*/*/confidences/ablation; echo \"=== verify removed ===\"; ls output/ablation 2>&1; find output -type d -name ablation 2>/dev/null; echo \"done\")",
+      "Bash(mkdir -p /data/haowhuan/cotuq_logs *)"
     ],
     "additionalDirectories": [
-      "/data/haowhuan/PycharmProjects/CoT-UQ/tmp"
+      "/data/haowhuan/PycharmProjects/CoT-UQ/tmp",
+      "/data/haowhuan/PycharmProjects/CoT-UQ/papers",
+      "/data/haowhuan/PycharmProjects/CoT-UQ/output/*/*/confidences",
+      "/data/haowhuan/cotuq_logs"
     ]
   }
 }

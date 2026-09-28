@@ -2,8 +2,10 @@ import torch
 import time
 import os
 import json
+import re
 from transformers import LlamaTokenizer, LlamaForCausalLM, AutoConfig
 from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import StoppingCriteria, StoppingCriteriaList
 # from peft import PeftModel
 
 HF_NAMES = {
@@ -46,14 +48,49 @@ def model_init(args):
         raise ValueError(f"Invalid model engine: {args.model_engine}")
     return model, tokenizer, device
 
-def predict(args, prompt, model, tokenizer):
+class StopOnConfidence(StoppingCriteria):
+    """Halt generation as soon as a confidence percentage has been emitted.
+
+    Self-probing only needs the percentage, which the model produces in its first few
+    tokens; without this it keeps generating to max_new_tokens and the rest is discarded
+    by extract_probing_confidence(), which reads the *first* ``\\d+%`` match.
+    """
+
+    def __init__(self, tokenizer, prompt_len: int):
+        self.tokenizer = tokenizer
+        self.prompt_len = prompt_len
+
+    def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor, **kwargs) -> bool:
+        text = self.tokenizer.decode(input_ids[0][self.prompt_len:], skip_special_tokens=True)
+        return re.search(r"\d+(\.\d+)?%", text) is not None
+
+
+def predict(args, prompt, model, tokenizer, stop_on_confidence: bool = False):
+    """Greedy-decode a response.
+
+    When stop_on_confidence is set, generation halts at the first percentage rather than
+    running to max_new_tokens. Off by default so CoT inference is unaffected.
+    """
     inputs = tokenizer(prompt, return_tensors="pt").to('cuda')
+    prompt_len = len(inputs["input_ids"][0])
+
+    stopping_criteria = None
+    if stop_on_confidence:
+        stopping_criteria = StoppingCriteriaList([StopOnConfidence(tokenizer, prompt_len)])
+
     generate_ids = model.generate(
-        **inputs, 
+        **inputs,
         max_new_tokens = args.max_length_cot,
-        temperature=args.temperature, 
-        pad_token_id=tokenizer.eos_token_id)
-    generate_ids = generate_ids[0][len(inputs["input_ids"][0]):-1]
+        temperature=args.temperature,
+        pad_token_id=tokenizer.eos_token_id,
+        stopping_criteria=stopping_criteria)
+
+    if stop_on_confidence:
+        # The stop token carries the '%' itself, so it must be kept; the default path
+        # trims the trailing EOS instead.
+        generate_ids = generate_ids[0][prompt_len:]
+    else:
+        generate_ids = generate_ids[0][prompt_len:-1]
     infer_res = tokenizer.decode(generate_ids)
     return infer_res
 

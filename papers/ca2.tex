@@ -1,0 +1,519 @@
+%% -*- coding: utf-8 -*-
+%% CA2 Progress Report
+%% Higher Degree by Research -- Candidature Assessment 2 (CA2)
+%% Standalone document; compiles independently of the STOP paper.
+
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage[colorlinks=true, linkcolor=black, citecolor=black, urlcolor=blue]{hyperref}
+
+\graphicspath{{figures/}}
+
+% Placeholder macro for details to be filled in by the candidate.
+\newcommand{\TODO}[1]{\textcolor{red}{\textbf{[TODO: #1]}}}
+
+\title{\textbf{Candidature Assessment 2 (CA2) --- Progress Report}\\[0.4em]
+\large Advances in Uncertainty Quantification for Machine Learning through\\
+Diversity-Aware Learning and Efficient Inference}
+\author{Candidate: Haowei Huang \\ Principal Supervisor: Dr. Junyu Xuan \quad }
+
+% \author{Candidate: Haowei Huang \\ Supervisor: Dr. Junyu Xuan}
+
+% \institute[]{Australia Artificial Intelligence Institute (AAII) \par
+% Faculty of Engineering and Information Technology \par
+% University of Technology Sydney, Australia \par} 
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent
+This report documents progress on my doctoral project since CA1. The thesis advances
+\emph{uncertainty quantification (UQ) for machine learning} along two complementary directions:
+\emph{diversity-aware learning} --- controlling how ensemble members disagree so that
+uncertainty is well calibrated --- and \emph{efficient inference} --- reducing the cost of
+building and deploying ensembles. Within this scope, the report focuses on two contributions.
+The first, STOP, is a substantially completed method that uses the edge-of-stability transition
+in training dynamics to switch off diversity regularization once it is no longer needed, cutting
+training cost while preserving accuracy and calibration. The second carries the same
+diversity lens to large language models (LLMs): instead of \emph{controlling} member diversity
+during training, it \emph{reads out} the structural diversity of an ensemble of Chain-of-Thought
+reasoning chains and turns it into a black-box uncertainty estimate, adding no model inference
+beyond the sampled chains. For each of these two completed contributions I state the method, the
+key results, and how they bear on the central research question. A planned third contribution on
+uncertainty for LLM reasoning, together with a detailed plan towards thesis completion --- timeline,
+risks, and chapter structure --- closes the report. It is intended as the basis for discussion with my supervisory
+team and the assessment panel.
+\end{abstract}
+
+% =====================================================================
+\section{Research Aims and Questions}
+\label{sec:aims}
+
+\paragraph{Thesis scope.}
+The thesis advances uncertainty quantification (UQ) for machine learning through two
+complementary directions. \emph{Diversity-aware learning} concerns how ensemble members are
+encouraged to disagree so that predictive uncertainty is well calibrated. \emph{Efficient
+inference} concerns reducing the cost of building and using ensembles, which otherwise grows with
+ensemble size and model scale. Deep ensembles~\cite{lakshminarayanan2017simplescalablepredictiveuncertainty}
+are the vehicle throughout: they are among the most reliable UQ methods, precisely because members
+explore distinct regions of the loss landscape~\cite{fort2020deepensembleslosslandscape}, but this
+reliability is bought with substantial compute. This report covers two contributions under that
+scope --- STOP (Section~\ref{sec:work1}) and a diversity-based uncertainty method for
+LLMs (Section~\ref{sec:work2}).
+
+\paragraph{Central research question.}
+\emph{Can diversity be turned into well-calibrated, low-cost uncertainty --- during training, by
+using ensemble dynamics to decide when diversity regularization is still needed; and at inference
+for large language models, by reading the structural diversity of their reasoning chains?}
+
+\paragraph{Research questions.}
+This central question decomposes into two research questions, one per contribution in this report:
+\begin{description}[leftmargin=2.4em, style=nextline, itemsep=2pt]
+  \item[RQ1.] Does deep-ensemble training separate into an exploration and an exploitation phase
+  around the edge of stability, and if so, can a dynamics-triggered rule switch off diversity
+  regularization at that transition --- cutting training cost while preserving accuracy and
+  calibration? \emph{(Addressed by Work~1, Section~\ref{sec:work1}.)}
+  \item[RQ2.] Does the structural diversity of an LLM's Chain-of-Thought reasoning chains --- how
+  central or outlying each chain is within a sampled ensemble --- provide a stronger black-box
+  uncertainty signal than final-answer agreement, without any additional model inference?
+  \emph{(Addressed by Work~2, Section~\ref{sec:work2}.)}
+\end{description}
+
+\paragraph{Objectives.}
+\begin{description}[leftmargin=2.4em, style=nextline, itemsep=2pt]
+  \item[O1.] Characterize deep ensemble training as a two-phase (exploration / exploitation)
+  process separated by the edge of stability (EoS), and establish that useful diversity is
+  formed in the exploration phase. \emph{(Diversity-aware learning.)}
+  \item[O2.] Design and validate a practical, dynamics-triggered training strategy that reduces
+  the cost of diversity regularization while preserving accuracy and calibration.
+  \emph{(Efficient inference.)}
+  \item[O3.] Carry the diversity lens to large language models: quantify uncertainty by measuring
+  the structural diversity of an ensemble of Chain-of-Thought reasoning chains, under a black-box,
+  model-free constraint. \emph{(Diversity-aware learning at inference.)}
+\end{description}
+
+Objectives O1--O2 are addressed by the STOP work (Section~\ref{sec:work1}) and O3 by the LLM
+contribution (Section~\ref{sec:work2}), both now complete. A planned third contribution (Work~3),
+extending the LLM-uncertainty line of O3, and the plan towards thesis completion are set out in
+Section~\ref{sec:plan}.
+
+
+% =====================================================================
+\section{Work 1 --- STOP: Stability-Triggered Optimization for Deep Ensembles}
+\label{sec:work1}
+
+To make members disagree in useful ways, diversity regularizers such as
+Repul~\cite{dangelo2021repulsive} and DICE~\cite{rame2021dice} add overhead that grows with
+ensemble size. Table~\ref{tab:cost} illustrates this on a representative UCI dataset --- diversity
+regularization inflates training time by up to $10\times$ at $M=20$ relative to a plain deep
+ensemble (DE). The question driving STOP is whether this cost is \emph{necessary throughout
+training}, or whether the training dynamics themselves reveal when diversity has already been
+established and regularization can be safely stopped.
+
+\begin{table}[ht]
+  \centering
+  \caption{Training time (seconds) on Concrete for increasing ensemble size $M$, showing the
+  cost of diversity regularization relative to a plain deep ensemble (DE). Multipliers are
+  relative to DE at the same $M$.}
+  \label{tab:cost}
+  \begin{tabular}{lccc}
+    \toprule
+    & \multicolumn{3}{c}{Ensemble size $M$} \\
+    \cmidrule(lr){2-4}
+    Method & $M=5$ & $M=10$ & $M=20$ \\
+    \midrule
+    DE    &  23.3\,s          &  51.0\,s          &   93.7\,s \\
+    Repul &  51.6\,s\ (2.2$\times$) & 179.0\,s\ (3.5$\times$) & 384.7\,s\ (4.1$\times$) \\
+    DICE  &  86.0\,s\ (3.7$\times$) & 269.2\,s\ (5.3$\times$) & 937.0\,s\ (10.0$\times$) \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Research question and idea}
+Single-model optimization with gradient descent is known to enter an \emph{edge of stability}
+(EoS) regime~\cite{cohen2021gradient}, where the largest Hessian eigenvalue (sharpness)
+$\lambda_{\max}$ hovers near the stability threshold $2/\eta$ for learning rate $\eta$. Work~1
+extends this notion to deep ensembles. The hypothesis is that ensemble training decomposes into two phases:
+\begin{itemize}[itemsep=2pt]
+  \item an \textbf{exploration phase} before EoS, where members are dynamically unstable, rapidly
+  diversify, and settle into distinct basins --- and where diversity regularization matters;
+  \item an \textbf{exploitation phase} after EoS, where each member refines its solution within an
+  already-selected basin --- and where continued regularization yields diminishing returns at
+  full cost.
+\end{itemize}
+If true, one should regularize \emph{only} until EoS and stop thereafter. This is STOP:
+Stability-Triggered Optimization. Per member $k$, sharpness is monitored (after a short warm-up)
+and diversity regularization is disabled once member $k$'s sharpness first exceeds a scaled
+threshold; the ensemble is considered past EoS when all members have triggered.
+
+\subsection{Evidence that the two-phase picture holds}
+Figure~\ref{fig:trajectory} gives the motivating intuition in a controlled 2D setting: without
+regularization two members collapse into the same basin; with always-on regularization they
+separate; with STOP they \emph{still} separate despite regularization being switched off early ---
+consistent with basin selection becoming effectively irreversible past EoS.
+
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=0.92\linewidth]{learning_trajectory_2d_comparison.png}
+  \caption{Optimization trajectories of ensemble members. Left: no regularization (members
+  collapse). Middle: always-on diversity regularization (members separate). Right: STOP ---
+  regularization active only before EoS, then disabled; members still reach distinct basins.}
+  \label{fig:trajectory}
+\end{figure}
+
+Figure~\ref{fig:diversity} provides the direct empirical test on real data (pumadyn, 5 members),
+added in response to reviewer feedback. Sharpness rises and saturates near $2/\eta$, and the
+diversity signals (function-space distance, Jensen gap) plateau around the per-member EoS
+triggers --- i.e., diversity is essentially formed by the time STOP switches regularization off.
+
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=0.92\linewidth]{pumadyn_dice_repul_pair_diversity.png}
+  \caption{Sharpness and diversity trajectories on pumadyn (5 members): DICE (left), Repul
+  (right). Rows: sharpness $\lambda_{\max}$; function-space distance; RMSE; Jensen gap. Vertical
+  lines mark per-member EoS triggers. Diversity plateaus around the triggers, supporting the
+  two-phase account.}
+  \label{fig:diversity}
+\end{figure}
+
+\subsection{Key results}
+\paragraph{Efficiency (the headline result).}
+On CIFAR-10 with ResNet-20~\cite{he2016deep} (Table~\ref{tab:cifar_time}), STOP cuts total training time by
+57--66\% for DICE and 59--73\% for Repul, with savings \emph{growing} with ensemble size ---
+mirroring the quadratic scaling of regularization cost. A component-level breakdown (UCI) shows
+sharpness monitoring costs only 2--5\% of total training time, so EoS detection is cheap relative
+to the regularization it removes.
+
+\begin{table}[ht]
+\centering
+\caption{Total training time (hours, $\downarrow$) on CIFAR-10 (ResNet-20). \textbf{Bold} = faster.}
+\label{tab:cifar_time}
+\small
+\begin{tabular}{lrrrrrr}
+\toprule
+Method & \multicolumn{2}{c}{$M=5$} & \multicolumn{2}{c}{$M=10$} & \multicolumn{2}{c}{$M=20$} \\
+\cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7}
+ & Base & +STOP & Base & +STOP & Base & +STOP \\
+\midrule
+DICE  & 21.7 & \textbf{9.3} & 32.9 & \textbf{12.3} & 129.4 & \textbf{44.1} \\
+Repul & 4.1  & \textbf{1.7} & 8.4  & \textbf{3.5}  & 25.2  & \textbf{6.8}  \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Predictive quality is preserved.}
+On UCI regression (Table~\ref{tab:uci}), STOP is no worse than always-on regularization on MSE
+and generally matches or improves calibration (QCE). On CIFAR-10, clean accuracy stays within
+$\sim$0.4\% of the always-on baselines and STOP frequently \emph{improves} robustness under
+input corruption --- i.e., the large efficiency gains do not come at the expense of accuracy or
+uncertainty quality.
+
+\begin{table}[ht]
+\centering
+\caption{MSE ($\downarrow$) and QCE ($\downarrow$) on UCI datasets ($M=5$). \textbf{Bold} = STOP
+is no worse than the corresponding always-on method.}
+\label{tab:uci}
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{l rrrrr rrrrr}
+\toprule
+& \multicolumn{5}{c}{MSE ($\downarrow$)} & \multicolumn{5}{c}{QCE ($\downarrow$)} \\
+\cmidrule(lr){2-6} \cmidrule(lr){7-11}
+Dataset & DE & DICE & DICE+STOP & Repul & Repul+STOP & DE & DICE & DICE+STOP & Repul & Repul+STOP \\
+\midrule
+Pumadyn  & 0.12  & 0.07  & \textbf{0.07}  & 0.11  & \textbf{0.09}  & 0.15 & 0.12 & \textbf{0.08} & \textbf{0.04} & \textbf{0.04} \\
+Concrete & 27.00 & 22.06 & \textbf{21.84} & 26.57 & \textbf{21.84} & 0.25 & 0.21 & \textbf{0.14} & 0.09 & \textbf{0.08} \\
+Airfoil  & 5.60  & 5.43  & \textbf{5.01}  & 4.85  & \textbf{4.81}  & 0.20 & 0.19 & \textbf{0.18} & \textbf{0.14} & \textbf{0.14} \\
+Slump    & 39.00 & 37.36 & \textbf{36.14} & 37.93 & \textbf{37.85} & 0.25 & 0.22 & 0.22 & \textbf{0.16} & \textbf{0.16} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{The trigger, not merely early stopping, drives the gain.}
+Baseline comparisons over fixed-stop schedules (30/50/70/90\%) and a matched-epoch stop with no
+sharpness computation show that \emph{EoS-aware} triggering --- not simply regularizing for fewer
+epochs --- is what preserves accuracy and calibration at the reduced cost, confirming that the
+edge-of-stability signal, and not an arbitrary early cutoff, is doing the work.
+
+\subsection{Status and reviewer response}
+The STOP paper has been written and submitted (\TODO{venue / date}). Reviewer feedback centred on
+(i) direct evidence for the two-phase claim, (ii) stronger baselines, (iii) sensitivity of the
+trigger, and (iv) honest runtime accounting including monitoring overhead. In response I completed
+four experiment sets, building on the ensemble UQ evaluation pipeline of~\cite{seligmann2024beyond}:
+\textbf{(A)} sharpness/diversity trajectory plots (Fig.~\ref{fig:diversity});
+\textbf{(B)} fixed-stop and matched-stop baselines; \textbf{(C)} sensitivity ablations over
+threshold and cadence; \textbf{(D)} a wall-clock runtime breakdown isolating sharpness-monitoring
+cost. These directly address the main criticisms and are being folded into a revised manuscript.
+
+% =====================================================================
+\section{Work 2 --- Reading Out Reasoning Diversity for Uncertainty in Large Language Models}
+\label{sec:work2}
+
+Work~2 carries the \emph{diversity} lens of the thesis from training-time \emph{control} to
+inference-time \emph{measurement}. Where Work~1 asks how to make ensemble members disagree in useful
+ways --- and when to stop paying for it --- Work~2 asks the dual question for large language models
+(LLMs): given an ensemble of reasoning chains a single LLM produces for one question, how much do
+they \emph{structurally} agree, and can that agreement be turned into a calibrated confidence score?
+The setting is black-box --- only input/output access, no logits or hidden states --- so the
+ensemble is formed by sampling multiple Chain-of-Thought (CoT) responses rather than by training
+$M$ separate models. Efficiency therefore enters as a \emph{constraint the method respects} (no LLM
+calls beyond the sampled ensemble; only a small sentence encoder), not as the object of study.
+
+\subsection{Motivation and idea}
+Existing black-box UQ for LLMs scores confidence from \emph{final-answer} agreement across sampled
+responses --- self-consistency~\cite{wang2023selfconsistency}, semantic
+entropy~\cite{kuhn2023semantic,farquhar2024detecting}, and verbalized / self-probing
+confidence~\cite{xiong2024llms}. This collapses each response to its answer and discards the
+reasoning that produced it. Two chains that reach the \emph{same} answer through \emph{different}
+reasoning represent genuine epistemic uncertainty that answer-level methods cannot see
+(Figure~\ref{fig:intro_motivation}); conversely,
+chains that converge on a shared reasoning \emph{structure} are more trustworthy than a bare answer
+count suggests. CoT models expose this intermediate structure explicitly~\cite{wei2022chain}, and
+recent work has begun to exploit reasoning steps for UQ~\cite{zhang2025cotuq}. Work~2 treats the
+ensemble of reasoning chains as a \emph{sample of curves} and asks which chains are central and
+which are outlying --- exactly the question functional-data \emph{band
+depth}~\cite{lopezpintado2009banddepth} was designed to answer. Centrality of a reasoning chain
+within the ensemble becomes the confidence signal, making Work~2 a direct, inference-time
+counterpart to the diversity-aware learning of Work~1.
+
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=0.98\linewidth]{intro_motivation}
+  \caption{Answer-level versus reasoning-level uncertainty. Two ensembles of three CoT chains split
+  their final answers identically (two answer $B$, one answers $A$), so answer-level agreement
+  reports the same confidence and cannot tell them apart. What differs is \emph{where} the chains
+  diverge --- a late split (near-agreement, left) versus an early split (genuine uncertainty,
+  right). Band depth scores exactly this reasoning structure, which answer-level agreement discards.}
+  \label{fig:intro_motivation}
+\end{figure}
+
+\subsection{Method}
+Each sampled response is parsed into an ordered sequence of reasoning steps, and every step is
+embedded with a small sentence encoder~\cite{reimers2019sentencebert}. A response's confidence is
+its \emph{centrality} in the ensemble of chains: central (high-depth) chains lie ``inside'' the
+bundle the others trace out and are treated as confident, while outlying chains signal uncertainty.
+I develop a family of estimators of increasing structural fidelity
+(Figure~\ref{fig:methods_overview}):
+\begin{itemize}[itemsep=2pt]
+  \item \textbf{pBD (path band depth).} Treats each chain as an ordered curve, aligns chains of
+  different lengths by dynamic time warping, and scores a chain by the mean similarity of its steps
+  to the ensemble at aligned positions. Order-sensitive.
+  \item \textbf{vBD (vertex band depth).} Merges semantically equivalent steps across chains into a
+  reasoning graph and scores each chain by the average band depth of the graph vertices it visits.
+  Order-invariant, but path structure is lost.
+  \item \textbf{gBD (graph band depth).} Restores path-level depth but measures it against
+  \emph{random walks on the reasoning graph} rather than the handful of sampled chains, thereby
+  characterizing the full reasoning space the graph defines --- not only the chains the model
+  happened to emit. This is the strongest variant.
+\end{itemize}
+All three are model-free: they need only the sampled ensemble and a sentence encoder, and add no
+LLM inference beyond generating the chains.
+
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=0.98\linewidth]{methods_overview}
+  \caption{The three band-depth estimators, viewed as bands of curves. Each curve is one sampled
+  CoT chain and each node a reasoning step; a chain is \emph{deep} when it lies inside the band
+  formed by the others. \textbf{pBD} keeps the chains as position-aligned curves (order-sensitive);
+  \textbf{vBD} collapses semantically equivalent steps into shared vertices and scores a chain by
+  the centrality of the vertices it visits; \textbf{gBD} forms the band from random walks on the
+  reasoning graph. vBD and gBD are order-invariant.}
+  \label{fig:methods_overview}
+\end{figure}
+
+\subsection{Experiments}
+\paragraph{Setup.} For each question we sample $M$ Chain-of-Thought responses from a frozen LLM
+with temperature sampling, parse each response into reasoning steps, embed the steps with a small
+sentence encoder (all-MiniLM-L6-v2), and score every response by its band depth within the
+ensemble. Confidence is evaluated as failure prediction --- the AUROC of the confidence score
+against answer correctness --- on five reasoning benchmarks (GSM8K, SVAMP, ASDiv, HotpotQA,
+2WikiMHQA) with Llama-3.1-8B, Llama-2-13B, and Qwen2.5-3B. We compare against three black-box baselines:
+verbalized self-probing~\cite{xiong2024llms}, semantic
+entropy~\cite{kuhn2023semantic,farquhar2024detecting}, and an NLI entailment score.
+
+\paragraph{Results.} Table~\ref{tab:llm_uq} reports AUROC for Llama-3.1-8B, comparing the graph
+band-depth variant (gBD) against the baselines. The reasoning-structure signal outperforms both
+verbalized self-probing and answer-level consistency on every dataset: gBD raises AUROC by
+$0.08$--$0.15$ over semantic entropy, with the largest gains on multi-hop QA (HotpotQA, 2WikiMHQA),
+where reasoning structure --- not just the final answer --- carries most of the uncertainty. The
+ordering band depth $>$ NLI / semantic entropy $>$ self-probing holds across all three models. Among our
+variants gBD is best on four of five datasets, confirming that sampling reference paths from the
+reasoning graph gives a richer depth estimate than the raw ensemble; the vertex variant vBD leads
+on 2WikiMHQA ($0.692$). The whole family is model-free, adding no LLM calls beyond the sampled
+ensemble.
+
+\begin{table}[ht]
+\centering
+\caption{Failure-prediction AUROC ($\uparrow$) on five reasoning benchmarks (Llama-3.1-8B).
+Baselines: verbalized self-probing, semantic entropy, and an NLI entailment score. \textbf{Bold} =
+best. gBD is our graph band-depth method.}
+\label{tab:llm_uq}
+\small
+\begin{tabular}{lcccc}
+\toprule
+Dataset & Self-Probing & Semantic Entropy & NLI & gBD (ours) \\
+\midrule
+GSM8K     & 0.528 & 0.608 & 0.637 & \textbf{0.687} \\
+SVAMP     & 0.538 & 0.628 & 0.692 & \textbf{0.748} \\
+ASDiv     & 0.498 & 0.671 & 0.724 & \textbf{0.761} \\
+HotpotQA  & 0.549 & 0.623 & 0.638 & \textbf{0.772} \\
+2WikiMHQA & 0.567 & 0.530 & 0.583 & \textbf{0.684} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Relationship to Work 1}
+Both works are organized around diversity. Work~1 \emph{induces} diversity among ensemble members
+during training and decides, from training dynamics, when it has been established. Work~2
+\emph{reads} diversity out of an ensemble of reasoning chains at inference and turns its structure
+into an uncertainty estimate. STOP's efficiency discipline carries over as a design constraint ---
+Work~2 deliberately avoids the per-member training and serving cost of a true LLM ensemble by
+sampling one model and staying model-free --- but the scientific object is the diversity signal
+itself, not a training-dynamics trigger; there is no edge-of-stability mechanism in Work~2.
+
+% =====================================================================
+\section{Plan Towards Completion}
+\label{sec:plan}
+
+\subsection{Work~3 --- planned contribution}
+With Works~1 and~2 complete, the remaining research contribution is Work~3, which continues the
+LLM-uncertainty line of Work~2. \emph{Working title: adaptive, calibrated uncertainty for LLM
+reasoning.} A traditional deep ensemble --- training and serving $M$ independent LLMs --- is
+infeasible at LLM scale, so this line of work pursues an \emph{alternative} to deep ensembling:
+approximate the ensemble by sampling multiple reasoning chains from a single model and reading
+their diversity. Work~2 established that this structural diversity is a strong \emph{ranking} signal
+computed from a \emph{fixed} ensemble of $M$ chains; Work~3 targets the two gaps that remain for
+practical use:
+\begin{itemize}[itemsep=2pt]
+  \item \textbf{Adaptive sampling.} Decide \emph{how many} reasoning chains to draw per question,
+  stopping once the diversity signal has converged --- an inference-time echo of STOP's
+  dynamics-triggered stopping --- so easy questions cost few samples and hard ones get more.
+  \item \textbf{Calibration.} Map the diversity-depth score to a \emph{calibrated} probability of
+  correctness, not only a discriminative ranking, while keeping the black-box, model-free setting.
+\end{itemize}
+This unifies the thesis threads at the LLM level: diversity as the signal, efficiency through
+adaptive sampling, and uncertainty that is both discriminative and calibrated.
+\TODO{fix the precise research question, method, and evaluation once the work begins.}
+
+\subsection{Remaining work}
+\begin{enumerate}[itemsep=2pt]
+  \item \textbf{Publish Works~1 and~2.} Both contributions are complete; what remains is
+  write-up and publication --- STOP's revised manuscript and camera-ready, and the Work~2 paper.
+  \TODO{targets}
+  \item \textbf{Carry out Work~3.} Fix the research question above, implement the adaptive-sampling
+  and calibration components, and run the evaluation. \TODO{key milestones}
+  \item \textbf{Thesis assembly.} Integrate the three contributions --- together with the earlier
+  diversity-regularization work --- into a coherent thesis with a unified introduction and a
+  background chapter on ensembles, UQ, diversity regularization, and edge-of-stability dynamics.
+\end{enumerate}
+
+\subsection{Indicative timeline}
+\begin{table}[ht]
+  \centering
+  \caption{Indicative timeline to submission. Dates to be finalized with supervisors.}
+  \label{tab:timeline}
+  \small
+  \begin{tabular}{p{7.6cm} l}
+    \toprule
+    Milestone & Target \\
+    \midrule
+    STOP revision / camera-ready complete             & \TODO{quarter} \\
+    Work~2 paper submitted                             & \TODO{quarter} \\
+    Work~3 method and experiments complete             & \TODO{quarter} \\
+    Work~3 paper submitted                             & \TODO{quarter} \\
+    Full thesis draft to supervisors                   & \TODO{quarter} \\
+    Thesis submission                                  & \TODO{quarter} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Risks and mitigations}
+\begin{description}[leftmargin=2.4em, style=nextline, itemsep=3pt]
+  \item[Scaling risk] STOP is validated at small/medium scale. \emph{Mitigation:} add at least one
+  larger model / additional image domain; the monitoring cost being 2--5\% suggests the approach
+  remains cheap at scale.
+  \item[Regularizer-dependence risk] Benefits are less consistent for Repul. \emph{Mitigation:}
+  the trajectory analysis (Fig.~\ref{fig:diversity}) is being used to characterize when STOP helps;
+  report the operating regime honestly rather than overclaiming universality.
+  \item[Work~3 feasibility] Work~3 is not yet started, and adaptive sampling plus calibration adds
+  moving parts. \emph{Mitigation:} both components build directly on the completed Work~2 pipeline
+  (model-free, no extra LLM calls), so they can be prototyped cheaply and independently; a
+  fixed-ensemble, ranking-only result is already in hand from Work~2 as a fallback if calibration
+  proves hard.
+  \item[Publication timing] Review cycles are uncertain. \emph{Mitigation:} sequence the three
+  contributions so the thesis does not depend on any single acceptance.
+\end{description}
+
+\subsection{Proposed thesis structure}
+\begin{enumerate}[itemsep=1pt]
+  \item Introduction --- motivation, central research question, contributions.
+  \item Background --- deep ensembles, uncertainty quantification, diversity regularization, and
+  the edge of stability.
+  \item Diversity-aware learning --- the earlier diversity-regularization contribution
+  (\emph{not covered in this progress report}). \TODO{chapter title}
+  \item STOP --- stability-triggered stopping of diversity regularization (Work~1).
+  \item Reasoning-diversity uncertainty for large language models (Work~2).
+  \item Adaptive, calibrated uncertainty for LLM reasoning (Work~3). \TODO{confirm chapter title}
+  \item Conclusion --- findings, limitations, and future directions.
+\end{enumerate}
+
+% =====================================================================
+\section{Research Data Management}
+\label{sec:rdm}
+
+This section records the research data management plan (RDMP) for the project and the updates made
+to it since CA1, in line with the university's research data management policy.
+\TODO{cite/link the institutional RDMP record or tool entry, e.g. the Stash / DMP record}
+
+\paragraph{Data description.}
+The project uses no human-subject, personal, or otherwise sensitive data. Three kinds of data are
+involved: (i) \emph{public benchmark datasets} --- UCI regression sets and CIFAR-10 for Work~1, and
+GSM8K, SVAMP, ASDiv, HotpotQA, and 2WikiMHQA for Work~2 --- all obtained from their original public
+releases under their respective licenses; (ii) \emph{generated data} --- ensemble members and
+training logs (Work~1), and sampled Chain-of-Thought responses, step embeddings, per-question
+confidence scores, and evaluation metrics (Work~2); and (iii) \emph{code and configuration} that
+produce the above. Pre-trained language models (Llama~2 / Llama~3 / Qwen2.5) are used under their community
+licenses and are treated as inputs, not redistributed.
+
+\paragraph{Storage, backup, and organization.}
+All source code is under Git version control, with each contribution in its own repository and a
+documented directory layout (raw inputs, generated outputs, and analysis kept separate). Working
+data and model checkpoints are held on institutional research storage with automatic backup, rather
+than on local machines. \TODO{name the storage location / quota and the backup cadence}
+Generated artifacts are organized by \texttt{model / dataset / method} so that any reported number
+is traceable to the script and configuration that produced it.
+
+\paragraph{Retention, sharing, and preservation.}
+Because all inputs are public and no sensitive data is involved, the intended default is open
+release: code and the scripts needed to regenerate results will be published in a public repository
+on paper acceptance, and derived result files (metrics, confidence scores) archived alongside.
+Large regenerable artifacts (checkpoints, raw sampled responses) are retained for the project's
+duration and for the university's required minimum retention period, then reviewed for deletion.
+\TODO{state the retention period and the intended archive/DOI (e.g. Zenodo / institutional repository)}
+
+\paragraph{Updates and active engagement since CA1.}
+The RDMP has been kept current with the project rather than treated as a one-off form:
+\begin{itemize}[itemsep=2pt]
+  \item Work~2 introduced a new class of generated data (sampled CoT ensembles, embeddings,
+  confidence scores); the plan was extended to cover its layout, storage, and provenance.
+  \item Adopted a consistent, reproducible pipeline (fixed seeds, resume-safe runs, and an
+  auto-derived output path per \texttt{model/dataset}) so results are regenerable from code plus
+  public data.
+  \item \TODO{list any concrete engagement since CA1 --- e.g. migrated working data to institutional
+  storage, updated the DMP record on <date>, confirmed dataset licenses.}
+\end{itemize}
+No ethics approval is required, as the work uses only public datasets and pre-trained models and
+generates no data about human participants.
+
+\bibliographystyle{plain}
+\bibliography{refs}
+
+\end{document}
